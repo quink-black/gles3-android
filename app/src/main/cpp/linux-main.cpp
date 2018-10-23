@@ -18,7 +18,7 @@ static inline void printGlString(const char* name, GLenum s) {
     ALOGD("GL %s: %s", name, v);
 }
 
-void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
+static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
         GLenum severity, GLsizei length, const GLchar* message,
         const void* userParam)
 {

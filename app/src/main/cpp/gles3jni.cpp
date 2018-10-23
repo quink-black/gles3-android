@@ -24,6 +24,10 @@
 #include "log.h"
 #include "tonemap.h"
 
+#ifndef GL_DEBUG_OUTPUT
+#define GL_DEBUG_OUTPUT 0x92E0
+#endif
+
 static ToneMap *g_renderer;
 
 static inline void printGlString(const char* name, GLenum s) {
@@ -37,6 +41,17 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj);
 };
 
+static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
+        GLenum severity, GLsizei length, const GLchar* message,
+        const void* userParam)
+{
+    (void)source;
+    (void)id;
+    (void)length;
+    (void)userParam;
+    ALOGE("GL CALLBACK: type = 0x%x, severity = 0x%x, message = %s", type, severity, message);
+}
+
 JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     if (g_renderer) {
@@ -48,6 +63,13 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     printGlString("Vendor", GL_VENDOR);
     printGlString("Renderer", GL_RENDERER);
     printGlString("Extensions", GL_EXTENSIONS);
+
+    auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
+    if (debugCallback) {
+        glEnable(GL_DEBUG_OUTPUT);
+        debugCallback((void*)openGLMessageCallback, nullptr);
+        ALOGD("setup opengl message callback");
+    }
 
     const char* versionStr = (const char*)glGetString(GL_VERSION);
     if (strstr(versionStr, "OpenGL ES 3.")) {
