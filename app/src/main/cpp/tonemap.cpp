@@ -116,7 +116,53 @@ void main()
 }
 )";
 
-static const char *FRAG_SHADER =
+static const char *FRAG_SHADER_A =
+R"(#version 300 es
+precision mediump float;
+precision mediump usampler2D;
+uniform usampler2D source;
+uniform float gamma;
+uniform float A;
+uniform float B;
+uniform float C;
+uniform float D;
+uniform float E;
+uniform float F;
+uniform float W;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
+}
+
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+vec4 tonemap(vec4 x)
+{
+    return ((x * (A*x + C*B) + D*E) / (x * (A*x+B) + D*F)) - E/F;
+}
+
+void main()
+{
+    uvec4 cc = texture(source, o_uv);
+    float ratio = 255.0;
+    vec4 color = vec4(float(cc.r)/ratio, float(cc.g)/ratio, float(cc.b)/ratio, 1.0);
+    float exposureBias = 2.0;
+    vec4 curr = tonemap(exposureBias * color);
+    vec4 whiteScale = 1.0 / tonemap(vec4(W));
+    color = curr * whiteScale;
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+}
+)";
+
+static const char *FRAG_SHADER_B =
 R"(#version 300 es
 precision mediump float;
 uniform sampler2D source;
@@ -161,12 +207,33 @@ void main()
 
 class ToneMapImpl : public ToneMap {
 public:
-    ToneMapImpl() : mProgram(0), mVAO(0), mVBO(0), mEBO(0), mTexture(0) { }
+    ToneMapImpl() :
+        mProgram(0),
+        mVAO(0),
+        mVBO(0),
+        mEBO(0),
+        mTexture(0),
+        mGamma(2.2f),
+        mA(0.22f),
+        mB(0.3f),
+        mC(0.1f),
+        mD(0.2f),
+        mE(0.01f),
+        mF(0.3f),
+        mW(11.2f) {
+    }
 
     int Init(const char *filename) override {
         //ALOGD("%s", vertex_shader);
         //ALOGD("%s", frag_shader);
-        mProgram = createProgram(VERTEX_SHADER, FRAG_SHADER);
+        bool hasFloatExt = checkOpenGLExt("EXT_color_buffer_float");
+        if (hasFloatExt)
+            mProgram = createProgram(VERTEX_SHADER, FRAG_SHADER_B);
+        else
+            mProgram = createProgram(VERTEX_SHADER, FRAG_SHADER_A);
+        if (!mProgram)
+            return -1;
+
         glUseProgram(mProgram);
 
         glGenVertexArrays(1, &mVAO);
@@ -174,10 +241,10 @@ public:
         checkGlError();
 
         static float vbo[] = {
-            -0.9f, 0.9f,    0.0f, 0.0f,
-            -0.9f, -0.9f,   0.0f, 1.0f,
-            0.9f, -0.9f,    1.0f, 1.0f,
-            0.9f, 0.9f,     1.0f, 0.0f,
+            -1.0f, 1.0f,    0.0f, 0.0f,
+            -1.0f, -1.0f,   0.0f, 1.0f,
+            1.0f, -1.0f,    1.0f, 1.0f,
+            1.0f, 1.0f,     1.0f, 0.0f,
         };
         glGenBuffers(1, &mVBO);
         glBindBuffer(GL_ARRAY_BUFFER, mVBO);
@@ -201,8 +268,8 @@ public:
 
         glGenTextures(1, &mTexture);
         glBindTexture(GL_TEXTURE_2D, mTexture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         checkGlError();
 
         EXRImage img;
@@ -229,15 +296,14 @@ public:
         ALOGD("image width %d, height %d", img.width, img.height);
 
         float *f_buf = nullptr;
-        uint8_t *i_buf = nullptr;
-        bool hasFloatExt = checkOpenGLExt("EXT_color_buffer_float");
+        uint16_t *i_buf = nullptr;
 
         if (hasFloatExt) {
             f_buf = new float[img.width * img.height * 3];
             ALOGD("use float buffer");
         } else {
-            i_buf = new uint8_t[img.width * img.height * 3];
-            ALOGD("use uint8_t buffer");
+            i_buf = new uint16_t[img.width * img.height * 3];
+            ALOGD("use uint16_t buffer");
         }
 
         int idxR = -1, idxG = -1, idxB = -1;
@@ -276,6 +342,7 @@ public:
             }
         }
 
+        glUniform1i(glGetUniformLocation(mProgram, "source"), 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
 
@@ -283,7 +350,7 @@ public:
         if (hasFloatExt)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, img.width, img.height, 0, GL_RGB, GL_FLOAT, f_buf);
         else
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, i_buf);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16UI, img.width, img.height, 0, GL_RGB_INTEGER, GL_UNSIGNED_SHORT, i_buf);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         checkGlError();
 
@@ -302,14 +369,14 @@ public:
         checkGlError();
 
         glUseProgram(mProgram);
-        setFloat("gamma", 2.2f);
-        setFloat("A", 0.22f);
-        setFloat("B", 0.3f);
-        setFloat("C", 0.1f);
-        setFloat("D", 0.2f);
-        setFloat("E", 0.01f);
-        setFloat("F", 0.3f);
-        setFloat("W", 11.2f);
+        setFloat("gamma", mGamma);
+        setFloat("A", mA);
+        setFloat("B", mB);
+        setFloat("C", mC);
+        setFloat("D", mD);
+        setFloat("E", mE);
+        setFloat("F", mF);
+        setFloat("W", mW);
 
         glBindVertexArray(mVAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
@@ -317,21 +384,36 @@ public:
     }
 
 private:
-    template<typename T>
-    static void convert(void *p, int offset, int type, T *dst) {
+    static void convert(void *p, int offset, int type, float *dst) {
         switch(type) {
         case TINYEXR_PIXELTYPE_UINT: {
             int32_t *pix = (int32_t *)p;
-            *dst = static_cast<T>(pix[offset]);
+            *dst = pix[offset];
             break;
         }
         case TINYEXR_PIXELTYPE_HALF:
         case TINYEXR_PIXELTYPE_FLOAT: {
             float *pix = (float *)p;
-            if (std::is_integral<T>::value)
-                *dst = static_cast<T>(pix[offset] * 255);
-            else
-                *dst = static_cast<T>(pix[offset]);
+            *dst = pix[offset];
+            break;
+        }
+        default:
+            *dst = 0;
+            break;
+        }
+    }
+
+    static void convert(void *p, int offset, int type, uint16_t *dst) {
+        switch(type) {
+        case TINYEXR_PIXELTYPE_UINT: {
+            int32_t *pix = (int32_t *)p;
+            *dst = std::min<int>(pix[offset], UINT16_MAX);
+            break;
+        }
+        case TINYEXR_PIXELTYPE_HALF:
+        case TINYEXR_PIXELTYPE_FLOAT: {
+            float *pix = (float *)p;
+            *dst = std::min<int>(pix[offset] * 255, UINT16_MAX);
             break;
         }
         default:
@@ -348,6 +430,9 @@ private:
     GLuint mProgram;
     GLuint mVAO, mVBO, mEBO;
     GLuint mTexture;
+
+    float mGamma;
+    float mA, mB, mC, mD, mE, mF, mW;
 };
 
 ToneMap *ToneMap::CreateToneMap() {
