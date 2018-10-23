@@ -24,7 +24,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions -Wa
 set(OPENGL_LIB GLESv3)
 
 add_library(gles3jni SHARED
-            gles3jni.cpp)
+            gles3jni.cpp
+	    tonemap.cpp)
 
 # Include libraries needed for gles3jni lib
 target_link_libraries(gles3jni
