@@ -1,5 +1,7 @@
-#define GLFW_INCLUDE_ES32    1
+#define GLFW_INCLUDE_ES3    1
+#define GLFW_EXPOSE_NATIVE_EGL  1
 #include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 #include "log.h"
 #include "tonemap.h"
@@ -7,12 +9,16 @@
 #define WINDOW_WIDTH    1280
 #define WINDOW_HEIGHT   720
 
+#ifndef GL_DEBUG_OUTPUT
+#define GL_DEBUG_OUTPUT 0x92E0
+#endif
+
 static inline void printGlString(const char* name, GLenum s) {
     const char* v = (const char*)glGetString(s);
     ALOGD("GL %s: %s", name, v);
 }
 
-void GLAPIENTRY openGLMessageCallback(GLenum source, GLenum type, GLuint id,
+void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
         GLenum severity, GLsizei length, const GLchar* message,
         const void* userParam)
 {
@@ -33,6 +39,7 @@ int main(int argc, char *argv[])
     if (!glfwInit())
         return 1;
 
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
@@ -51,8 +58,12 @@ int main(int argc, char *argv[])
             [](GLFWwindow *, int w, int h) { glViewport(0, 0, w, h); });
     glfwMakeContextCurrent(window);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(openGLMessageCallback, 0);
+
+    auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
+    if (debugCallback) {
+        glEnable(GL_DEBUG_OUTPUT);
+        debugCallback((void*)openGLMessageCallback, nullptr);
+    }
 
     printGlString("Version", GL_VERSION);
     printGlString("Vendor", GL_VENDOR);
