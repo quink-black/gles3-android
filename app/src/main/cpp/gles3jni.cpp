@@ -62,7 +62,16 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     printGlString("Version", GL_VERSION);
     printGlString("Vendor", GL_VENDOR);
     printGlString("Renderer", GL_RENDERER);
-    printGlString("Extensions", GL_EXTENSIONS);
+
+    ALOGD("========= OpenGL extensions begin ========");
+    char *tmp = strdup((const char *)glGetString(GL_EXTENSIONS));
+    char *p = strtok(tmp, " ");
+    while (p) {
+        ALOGD("%s", p);
+        p = strtok(nullptr, " ");
+    }
+    free(tmp);
+    ALOGD("========= OpenGL extensions end ========");
 
     auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
     if (debugCallback) {
