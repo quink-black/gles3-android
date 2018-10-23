@@ -17,6 +17,7 @@
 package com.android.gles3jni;
 
 import android.app.Activity;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.WindowManager;
@@ -29,6 +30,7 @@ public class GLES3JNIActivity extends Activity {
 
     @Override protected void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+        this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         mView = new GLES3JNIView(getApplication());
         setContentView(mView);
     }
