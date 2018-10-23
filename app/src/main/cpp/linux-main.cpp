@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
     printGlString("Version", GL_VERSION);
     printGlString("Vendor", GL_VENDOR);
     printGlString("Renderer", GL_RENDERER);
+    //printGlString("Extensions", GL_EXTENSIONS);
 
     ToneMap *toneMap = ToneMap::CreateToneMap();
     if (toneMap->Init("test.exr"))

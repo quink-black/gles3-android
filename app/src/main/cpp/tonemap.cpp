@@ -19,7 +19,7 @@ static inline bool checkGlError(const char* funcName, int line = -1)
 
 #define checkGlError()  checkGlError(__func__, __LINE__)
 
-static inline GLuint createShader(GLenum shaderType, const char* src)
+static GLuint createShader(GLenum shaderType, const char* src)
 {
     GLuint shader = glCreateShader(shaderType);
     if (!shader) {
@@ -51,7 +51,7 @@ static inline GLuint createShader(GLenum shaderType, const char* src)
     return shader;
 }
 
-static inline GLuint createProgram(const char* vtxSrc, const char* fragSrc)
+static GLuint createProgram(const char* vtxSrc, const char* fragSrc)
 {
     GLuint vtxShader = 0;
     GLuint fragShader = 0;
@@ -96,6 +96,12 @@ exit:
     glDeleteShader(vtxShader);
     glDeleteShader(fragShader);
     return program;
+}
+
+static bool checkOpenGLExt(const char *ext) {
+    std::string extensions = (const char *)glGetString(GL_EXTENSIONS);
+    std::string::size_type extPos = extensions.find(ext);
+    return extPos != std::string::npos;
 }
 
 static const char *VERTEX_SHADER =
@@ -222,7 +228,18 @@ public:
 
         ALOGD("image width %d, height %d", img.width, img.height);
 
-        uint8_t *data = new uint8_t[img.width * img.height * 3];
+        float *f_buf = nullptr;
+        uint8_t *i_buf = nullptr;
+        bool hasFloatExt = checkOpenGLExt("EXT_color_buffer_float");
+
+        if (hasFloatExt) {
+            f_buf = new float[img.width * img.height * 3];
+            ALOGD("use float buffer");
+        } else {
+            i_buf = new uint8_t[img.width * img.height * 3];
+            ALOGD("use uint8_t buffer");
+        }
+
         int idxR = -1, idxG = -1, idxB = -1;
         for (int c = 0; c < header.num_channels; ++c) {
             if (strcmp(header.channels[c].name, "R") == 0)
@@ -238,12 +255,24 @@ public:
                 return -1;
             }
         }
-        for (int i = 0; i < img.height; ++i) {
-            for (int j = 0; j < img.width; ++j) {
-                int index = i * img.width + j;
-                data[index * 3 + 0] = convert(img.images[idxR], index, header.pixel_types[idxR]);
-                data[index * 3 + 1] = convert(img.images[idxG], index, header.pixel_types[idxG]);
-                data[index * 3 + 2] = convert(img.images[idxB], index, header.pixel_types[idxB]);
+
+        if (hasFloatExt) {
+            for (int i = 0; i < img.height; ++i) {
+                for (int j = 0; j < img.width; ++j) {
+                    int index = i * img.width + j;
+                    convert(img.images[idxR], index, header.pixel_types[idxR], &f_buf[index * 3 + 0]);
+                    convert(img.images[idxG], index, header.pixel_types[idxG], &f_buf[index * 3 + 1]);
+                    convert(img.images[idxB], index, header.pixel_types[idxB], &f_buf[index * 3 + 2]);
+                }
+            }
+        } else {
+            for (int i = 0; i < img.height; ++i) {
+                for (int j = 0; j < img.width; ++j) {
+                    int index = i * img.width + j;
+                    convert(img.images[idxR], index, header.pixel_types[idxR], &i_buf[index * 3 + 0]);
+                    convert(img.images[idxG], index, header.pixel_types[idxG], &i_buf[index * 3 + 1]);
+                    convert(img.images[idxB], index, header.pixel_types[idxB], &i_buf[index * 3 + 2]);
+                }
             }
         }
 
@@ -251,13 +280,19 @@ public:
         glBindTexture(GL_TEXTURE_2D, mTexture);
 
         glPixelStorei(GL_UNPACK_ROW_LENGTH, img.width);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        if (hasFloatExt)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, img.width, img.height, 0, GL_RGB, GL_FLOAT, f_buf);
+        else
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.width, img.height, 0, GL_RGB, GL_UNSIGNED_BYTE, i_buf);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         checkGlError();
 
         FreeEXRHeader(&header);
         FreeEXRImage(&img);
-        delete []data;
+        if (hasFloatExt)
+            delete []f_buf;
+        else
+            delete []i_buf;
         return 0;
     }
 
@@ -282,19 +317,26 @@ public:
     }
 
 private:
-    static inline uint8_t convert(void *p, int offset, int type) {
+    template<typename T>
+    static void convert(void *p, int offset, int type, T *dst) {
         switch(type) {
         case TINYEXR_PIXELTYPE_UINT: {
             int32_t *pix = (int32_t *)p;
-            return (float)pix[offset];
+            *dst = static_cast<T>(pix[offset]);
+            break;
         }
         case TINYEXR_PIXELTYPE_HALF:
         case TINYEXR_PIXELTYPE_FLOAT: {
             float *pix = (float *)p;
-            return pix[offset] * 255;
+            if (std::is_integral<T>::value)
+                *dst = static_cast<T>(pix[offset] * 255);
+            else
+                *dst = static_cast<T>(pix[offset]);
+            break;
         }
         default:
-            return 0.f;
+            *dst = 0;
+            break;
         }
     }
 
