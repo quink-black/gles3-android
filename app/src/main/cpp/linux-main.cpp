@@ -1,4 +1,4 @@
-#define GLFW_INCLUDE_ES3    1
+#define GLFW_INCLUDE_ES32    1
 #include <GLFW/glfw3.h>
 
 #include "log.h"
@@ -12,23 +12,24 @@ static inline void printGlString(const char* name, GLenum s) {
     ALOGD("GL %s: %s", name, v);
 }
 
-static void error_callback(int error, const char* description)
+void GLAPIENTRY openGLMessageCallback(GLenum source, GLenum type, GLuint id,
+        GLenum severity, GLsizei length, const GLchar* message,
+        const void* userParam)
 {
-    ALOGE("error: %d, %s\n", error, description);
-}
-
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    (void)scancode;
-    (void)mods;
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    (void)source;
+    (void)id;
+    (void)length;
+    (void)userParam;
+    ALOGE("GL CALLBACK: type = 0x%x, severity = 0x%x, message = %s", type, severity, message);
 }
 
 int main(int argc, char *argv[])
 {
     (void)argc;
-    glfwSetErrorCallback(error_callback);
+    glfwSetErrorCallback(
+            [](int error, const char* description)
+            { ALOGE("error: %d, %s\n", error, description); });
+
     if (!glfwInit())
         return 1;
 
@@ -39,11 +40,19 @@ int main(int argc, char *argv[])
     if (!window)
         return 1;
 
-    glfwSetKeyCallback(window, key_callback);
+    glfwSetKeyCallback(window,
+            [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+                (void)scancode;
+                (void)mods;
+                if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+                    glfwSetWindowShouldClose(window, GLFW_TRUE);
+            });
     glfwSetWindowSizeCallback(window,
             [](GLFWwindow *, int w, int h) { glViewport(0, 0, w, h); });
     glfwMakeContextCurrent(window);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(openGLMessageCallback, 0);
 
     printGlString("Version", GL_VERSION);
     printGlString("Vendor", GL_VENDOR);
