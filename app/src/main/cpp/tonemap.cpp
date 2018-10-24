@@ -5,104 +5,7 @@
 #include "tinyexr.h"
 
 #include "log.h"
-
-// returns true if a GL error occurred
-static inline bool checkGlError(const char* funcName, int line = -1)
-{
-    GLint err = glGetError();
-    if (err != GL_NO_ERROR) {
-        ALOGE("GL error after (%s, %d): 0x%08x\n", funcName, line, err);
-        return true;
-    }
-    return false;
-}
-
-#define checkGlError()  checkGlError(__func__, __LINE__)
-
-static GLuint createShader(GLenum shaderType, const char* src)
-{
-    GLuint shader = glCreateShader(shaderType);
-    if (!shader) {
-        checkGlError();
-        return 0;
-    }
-    glShaderSource(shader, 1, &src, NULL);
-
-    GLint compiled = GL_FALSE;
-    glCompileShader(shader);
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled) {
-        GLint infoLogLen = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLen);
-        if (infoLogLen > 0) {
-            GLchar* infoLog = new GLchar[infoLogLen];
-            if (infoLog) {
-                glGetShaderInfoLog(shader, infoLogLen, NULL, infoLog);
-                ALOGE("Could not compile %s shader:\n%s\n",
-                        shaderType == GL_VERTEX_SHADER ? "vertex" : "fragment",
-                        infoLog);
-                delete []infoLog;
-            }
-        }
-        glDeleteShader(shader);
-        return 0;
-    }
-
-    return shader;
-}
-
-static GLuint createProgram(const char* vtxSrc, const char* fragSrc)
-{
-    GLuint vtxShader = 0;
-    GLuint fragShader = 0;
-    GLuint program = 0;
-    GLint linked = GL_FALSE;
-
-    vtxShader = createShader(GL_VERTEX_SHADER, vtxSrc);
-    if (!vtxShader)
-        goto exit;
-
-    fragShader = createShader(GL_FRAGMENT_SHADER, fragSrc);
-    if (!fragShader)
-        goto exit;
-
-    program = glCreateProgram();
-    if (!program) {
-        checkGlError();
-        goto exit;
-    }
-    glAttachShader(program, vtxShader);
-    glAttachShader(program, fragShader);
-
-    glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &linked);
-    if (!linked) {
-        ALOGE("Could not link program");
-        GLint infoLogLen = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLogLen);
-        if (infoLogLen) {
-            GLchar* infoLog = new GLchar[infoLogLen];
-            if (infoLog) {
-                glGetProgramInfoLog(program, infoLogLen, NULL, infoLog);
-                ALOGE("Could not link program:\n%s\n", infoLog);
-                delete []infoLog;
-            }
-        }
-        glDeleteProgram(program);
-        program = 0;
-    }
-
-exit:
-    glDeleteShader(vtxShader);
-    glDeleteShader(fragShader);
-    return program;
-}
-
-static bool checkOpenGLExt(const char *ext) {
-    std::string extensions = (const char *)glGetString(GL_EXTENSIONS);
-    std::string::size_type extPos = extensions.find(ext);
-    return extPos != std::string::npos;
-}
+#include "opengl-helper.h"
 
 static const char *VERTEX_SHADER =
 R"(#version 300 es
@@ -226,11 +129,11 @@ public:
     int Init(const char *filename) override {
         //ALOGD("%s", vertex_shader);
         //ALOGD("%s", frag_shader);
-        bool hasFloatExt = checkOpenGLExt("EXT_color_buffer_float");
+        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
         if (hasFloatExt)
-            mProgram = createProgram(VERTEX_SHADER, FRAG_SHADER_B);
+            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_B);
         else
-            mProgram = createProgram(VERTEX_SHADER, FRAG_SHADER_A);
+            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_A);
         if (!mProgram)
             return -1;
 
@@ -238,7 +141,7 @@ public:
 
         glGenVertexArrays(1, &mVAO);
         glBindVertexArray(mVAO);
-        checkGlError();
+        CheckGLError();
 
         static float vbo[] = {
             -1.0f, 1.0f,    0.0f, 0.0f,
@@ -249,7 +152,7 @@ public:
         glGenBuffers(1, &mVBO);
         glBindBuffer(GL_ARRAY_BUFFER, mVBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vbo), vbo, GL_STATIC_DRAW);
-        checkGlError();
+        CheckGLError();
 
         static GLushort ebo[] = {
             0, 1, 2,
@@ -258,19 +161,19 @@ public:
         glGenBuffers(1, &mEBO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mEBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(ebo), ebo, GL_STATIC_DRAW);
-        checkGlError();
+        CheckGLError();
 
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void *)(2 * sizeof(float)));
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
-        checkGlError();
+        CheckGLError();
 
         glGenTextures(1, &mTexture);
         glBindTexture(GL_TEXTURE_2D, mTexture);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        checkGlError();
+        CheckGLError();
 
         EXRImage img;
         const char *err = nullptr;
@@ -352,7 +255,7 @@ public:
         else
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16UI, img.width, img.height, 0, GL_RGB_INTEGER, GL_UNSIGNED_SHORT, i_buf);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        checkGlError();
+        CheckGLError();
 
         FreeEXRHeader(&header);
         FreeEXRImage(&img);
@@ -366,7 +269,7 @@ public:
     void Draw() override {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        checkGlError();
+        CheckGLError();
 
         glUseProgram(mProgram);
         setFloat("gamma", mGamma);
@@ -380,7 +283,7 @@ public:
 
         glBindVertexArray(mVAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
-        checkGlError();
+        CheckGLError();
     }
 
 private:

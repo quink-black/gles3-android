@@ -1,10 +1,10 @@
-#include <string.h>
 #define GLFW_INCLUDE_ES3    1
 #define GLFW_EXPOSE_NATIVE_EGL  1
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
 #include "log.h"
+#include "opengl-helper.h"
 #include "tonemap.h"
 
 #define WINDOW_WIDTH    1280
@@ -13,22 +13,6 @@
 #ifndef GL_DEBUG_OUTPUT
 #define GL_DEBUG_OUTPUT 0x92E0
 #endif
-
-static inline void printGlString(const char* name, GLenum s) {
-    const char* v = (const char*)glGetString(s);
-    ALOGD("GL %s: %s", name, v);
-}
-
-static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
-        GLenum severity, GLsizei length, const GLchar* message,
-        const void* userParam)
-{
-    (void)source;
-    (void)id;
-    (void)length;
-    (void)userParam;
-    ALOGE("GL CALLBACK: type = 0x%x, severity = 0x%x, message = %s", type, severity, message);
-}
 
 int main(int argc, char *argv[])
 {
@@ -60,25 +44,11 @@ int main(int argc, char *argv[])
     glfwMakeContextCurrent(window);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
-    if (debugCallback) {
-        glEnable(GL_DEBUG_OUTPUT);
-        debugCallback((void*)openGLMessageCallback, nullptr);
-    }
-
-    printGlString("Version", GL_VERSION);
-    printGlString("Vendor", GL_VENDOR);
-    printGlString("Renderer", GL_RENDERER);
-    ALOGD("========= OpenGL extensions begin ========");
-    char *exts = strdup((const char *)glGetString(GL_EXTENSIONS));
-    char *saveptr;
-    char *token = strtok_r(exts, " ", &saveptr);
-    while (token) {
-        ALOGD("%s", token);
-        token = strtok_r(nullptr, " ", &saveptr);
-    }
-    free(exts);
-    ALOGD("========= OpenGL extensions end ========");
+    OpenGL_Helper::PrintGLString("Version", GL_VERSION);
+    OpenGL_Helper::PrintGLString("Vendor", GL_VENDOR);
+    OpenGL_Helper::PrintGLString("Renderer", GL_RENDERER);
+    OpenGL_Helper::PrintGLExtension();
+    OpenGL_Helper::SetupDebugCallback();
 
     ToneMap *toneMap = ToneMap::CreateToneMap();
     if (toneMap->Init("test.exr"))

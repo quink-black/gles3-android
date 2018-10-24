@@ -25,6 +25,7 @@ set(OPENGL_LIB GLESv3)
 
 add_library(gles3jni SHARED
             gles3jni.cpp
+	    opengl-helper.cpp
 	    tonemap.cpp)
 
 # Include libraries needed for gles3jni lib

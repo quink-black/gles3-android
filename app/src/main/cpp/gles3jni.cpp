@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <jni.h>
 #include <stdlib.h>
@@ -23,10 +22,7 @@
 
 #include "log.h"
 #include "tonemap.h"
-
-#ifndef GL_DEBUG_OUTPUT
-#define GL_DEBUG_OUTPUT 0x92E0
-#endif
+#include "opengl-helper.h"
 
 static ToneMap *g_renderer;
 
@@ -41,17 +37,6 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj);
 };
 
-static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
-        GLenum severity, GLsizei length, const GLchar* message,
-        const void* userParam)
-{
-    (void)source;
-    (void)id;
-    (void)length;
-    (void)userParam;
-    ALOGE("GL CALLBACK: type = 0x%x, severity = 0x%x, message = %s", type, severity, message);
-}
-
 JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     if (g_renderer) {
@@ -59,27 +44,11 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
         g_renderer = NULL;
     }
 
-    printGlString("Version", GL_VERSION);
-    printGlString("Vendor", GL_VENDOR);
-    printGlString("Renderer", GL_RENDERER);
-
-    ALOGD("========= OpenGL extensions begin ========");
-    char *exts = strdup((const char *)glGetString(GL_EXTENSIONS));
-    char *saveptr;
-    char *token = strtok_r(exts, " ", &saveptr);
-    while (token) {
-        ALOGD("%s", token);
-        token = strtok_r(nullptr, " ", &saveptr);
-    }
-    free(exts);
-    ALOGD("========= OpenGL extensions end ========");
-
-    auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
-    if (debugCallback) {
-        glEnable(GL_DEBUG_OUTPUT);
-        debugCallback((void*)openGLMessageCallback, nullptr);
-        ALOGD("setup opengl message callback");
-    }
+    OpenGL_Helper::PrintGLString("Version", GL_VERSION);
+    OpenGL_Helper::PrintGLString("Vendor", GL_VENDOR);
+    OpenGL_Helper::PrintGLString("Renderer", GL_RENDERER);
+    OpenGL_Helper::PrintGLExtension();
+    OpenGL_Helper::SetupDebugCallback();
 
     const char* versionStr = (const char*)glGetString(GL_VERSION);
     if (strstr(versionStr, "OpenGL ES 3.")) {
