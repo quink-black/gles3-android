@@ -1,9 +1,10 @@
 #include "tonemap.h"
+
+#include <assert.h>
 #include <GLES3/gl3.h>
+#include <memory>
 
-#define TINYEXR_IMPLEMENTATION
-#include "tinyexr.h"
-
+#include "image.h"
 #include "log.h"
 #include "opengl-helper.h"
 
@@ -127,6 +128,7 @@ public:
     }
 
     int Init(const char *filename) override {
+        int ret = 0;
         //ALOGD("%s", vertex_shader);
         //ALOGD("%s", frag_shader);
         bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
@@ -175,94 +177,44 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         CheckGLError();
 
-        EXRImage img;
-        const char *err = nullptr;
-        EXRVersion version;
-        EXRHeader header;
-
-        InitEXRImage(&img);
-        InitEXRHeader(&header);
-        ParseEXRVersionFromFile(&version, filename);
-        if (ParseEXRHeaderFromFile(&header, &version, filename, &err) != 0) {
-            ALOGE("could not parse exr header: %s", err);
-            return -1;
-        }
-        for (int i = 0; i < header.num_channels; ++i) {
-            if (header.requested_pixel_types[i] == TINYEXR_PIXELTYPE_HALF)
-                header.requested_pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT;
-        }
-        if (LoadEXRImageFromFile(&img, &header, filename, &err) != 0) {
-            ALOGE("could not open exr file: %s", err);
-            return -1;
-        }
-
-        ALOGD("image width %d, height %d", img.width, img.height);
-
-        float *f_buf = nullptr;
-        uint16_t *i_buf = nullptr;
-
-        if (hasFloatExt) {
-            f_buf = new float[img.width * img.height * 3];
-            ALOGD("use float buffer");
-        } else {
-            i_buf = new uint16_t[img.width * img.height * 3];
-            ALOGD("use uint16_t buffer");
-        }
-
-        int idxR = -1, idxG = -1, idxB = -1;
-        for (int c = 0; c < header.num_channels; ++c) {
-            if (strcmp(header.channels[c].name, "R") == 0)
-                idxR = c;
-            else if (strcmp(header.channels[c].name, "G") == 0)
-                idxG = c;
-            else if (strcmp(header.channels[c].name, "B") == 0)
-                idxB = c;
-            else if (strcmp(header.channels[c].name, "A") == 0)
-                ;
-            else {
-                ALOGE("channel name %s", header.channels[c].name);
-                return -1;
-            }
-        }
-
-        if (hasFloatExt) {
-            for (int i = 0; i < img.height; ++i) {
-                for (int j = 0; j < img.width; ++j) {
-                    int index = i * img.width + j;
-                    convert(img.images[idxR], index, header.pixel_types[idxR], &f_buf[index * 3 + 0]);
-                    convert(img.images[idxG], index, header.pixel_types[idxG], &f_buf[index * 3 + 1]);
-                    convert(img.images[idxB], index, header.pixel_types[idxB], &f_buf[index * 3 + 2]);
-                }
-            }
-        } else {
-            for (int i = 0; i < img.height; ++i) {
-                for (int j = 0; j < img.width; ++j) {
-                    int index = i * img.width + j;
-                    convert(img.images[idxR], index, header.pixel_types[idxR], &i_buf[index * 3 + 0]);
-                    convert(img.images[idxG], index, header.pixel_types[idxG], &i_buf[index * 3 + 1]);
-                    convert(img.images[idxB], index, header.pixel_types[idxB], &i_buf[index * 3 + 2]);
-                }
-            }
-        }
-
         glUniform1i(glGetUniformLocation(mProgram, "source"), 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
 
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, img.width);
+        std::unique_ptr<ImageDecoder> img(ImageDecoder::CreateImageDecoder("OpenEXR"));
         if (hasFloatExt)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, img.width, img.height, 0, GL_RGB, GL_FLOAT, f_buf);
+            ret = img->Decode(filename, "float");
         else
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16UI, img.width, img.height, 0, GL_RGB_INTEGER, GL_UNSIGNED_SHORT, i_buf);
+            ret = img->Decode(filename, "uint16_t");
+
+        if (ret) {
+            return -1;
+        }
+
+        GLint internalformat;
+        GLenum format, type;
+        if (img->mDataType == "float") {
+            internalformat = GL_RGB32F;
+            format = GL_RGB;
+            type = GL_FLOAT;
+        } else if (img->mDataType == "uint16_t") {
+            internalformat = GL_RGB16UI;
+            format = GL_RGB_INTEGER;
+            type = GL_UNSIGNED_SHORT;
+        } else if (img->mDataType == "uint8_t") {
+            internalformat = GL_RGB;
+            format = GL_RGB;
+            type = GL_UNSIGNED_BYTE;
+        } else {
+            assert(false);
+            return -1;
+        }
+
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, img->mWidth);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalformat, img->mWidth, img->mHeight, 0, format, type, img->mData);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         CheckGLError();
 
-        FreeEXRHeader(&header);
-        FreeEXRImage(&img);
-        if (hasFloatExt)
-            delete []f_buf;
-        else
-            delete []i_buf;
         return 0;
     }
 
@@ -287,43 +239,7 @@ public:
     }
 
 private:
-    static void convert(void *p, int offset, int type, float *dst) {
-        switch(type) {
-        case TINYEXR_PIXELTYPE_UINT: {
-            int32_t *pix = (int32_t *)p;
-            *dst = pix[offset];
-            break;
-        }
-        case TINYEXR_PIXELTYPE_HALF:
-        case TINYEXR_PIXELTYPE_FLOAT: {
-            float *pix = (float *)p;
-            *dst = pix[offset];
-            break;
-        }
-        default:
-            *dst = 0;
-            break;
-        }
-    }
 
-    static void convert(void *p, int offset, int type, uint16_t *dst) {
-        switch(type) {
-        case TINYEXR_PIXELTYPE_UINT: {
-            int32_t *pix = (int32_t *)p;
-            *dst = std::min<int>(pix[offset], UINT16_MAX);
-            break;
-        }
-        case TINYEXR_PIXELTYPE_HALF:
-        case TINYEXR_PIXELTYPE_FLOAT: {
-            float *pix = (float *)p;
-            *dst = std::min<int>(pix[offset] * 255, UINT16_MAX);
-            break;
-        }
-        default:
-            *dst = 0;
-            break;
-        }
-    }
 
     void setFloat(const char *name, float value)
     { 
