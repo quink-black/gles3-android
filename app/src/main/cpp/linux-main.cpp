@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     OpenGL_Helper::PrintGLExtension();
     OpenGL_Helper::SetupDebugCallback();
 
-    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
     std::string texDataType = "float";
     if (!hasFloatExt)
         texDataType = "uint16_t";
@@ -59,8 +59,10 @@ int main(int argc, char *argv[])
     auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
     if (img->Decode("test.exr", texDataType.c_str()))
         return 1;
-    ToneMap *toneMap = ToneMap::CreateToneMap();
-    if (toneMap->Init(img))
+    std::shared_ptr<ToneMap> toneMap(ToneMap::CreateToneMap());
+    if (toneMap->Init())
+        return 1;
+    if (toneMap->UpLoadTexture(img))
         return 1;
 
     while (!glfwWindowShouldClose(window)) {
@@ -70,7 +72,6 @@ int main(int argc, char *argv[])
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-    delete toneMap;
 
     glfwTerminate();
     return 0;

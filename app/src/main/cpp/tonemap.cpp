@@ -112,7 +112,9 @@ void main()
 class ToneMapImpl : public ToneMap {
 public:
     ToneMapImpl() :
-        mProgram(0),
+        mProgramFloatSampler(0),
+        mProgramIntSampler(0),
+        mProgramCurrent(0),
         mVAO(0),
         mVBO(0),
         mEBO(0),
@@ -127,16 +129,9 @@ public:
         mW(11.2f) {
     }
 
-    int Init(std::shared_ptr<ImageDecoder> img) override {
-        if (img->mDataType == "uint16_t")
-            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_INTEGER_SAMPLER);
-        else
-            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_FLOAT_SAMPLER);
-        if (!mProgram)
-            return -1;
-
-        glUseProgram(mProgram);
-
+    int Init() override {
+        mProgramFloatSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_FLOAT_SAMPLER);
+        mProgramIntSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_INTEGER_SAMPLER);
         glGenVertexArrays(1, &mVAO);
         glBindVertexArray(mVAO);
         CheckGLError();
@@ -173,9 +168,16 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         CheckGLError();
 
-        glUniform1i(glGetUniformLocation(mProgram, "source"), 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
+        return 0;
+    }
+
+    int UpLoadTexture(std::shared_ptr<ImageDecoder> img) override {
+        if (img->mDataType == "uint16_t")
+            mProgramCurrent = mProgramIntSampler;
+        else
+            mProgramCurrent = mProgramFloatSampler;
 
         GLint internalformat;
         GLenum format, type;
@@ -204,35 +206,32 @@ public:
         return 0;
     }
 
-    void Draw() override {
+    int Draw() override {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         CheckGLError();
 
-        glUseProgram(mProgram);
-        setFloat("gamma", mGamma);
-        setFloat("A", mA);
-        setFloat("B", mB);
-        setFloat("C", mC);
-        setFloat("D", mD);
-        setFloat("E", mE);
-        setFloat("F", mF);
-        setFloat("W", mW);
+        glUseProgram(mProgramCurrent);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "gamma"), mGamma);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "A"), mA);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "B"), mB);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "C"), mC);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "D"), mD);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "E"), mE);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "F"), mF);
+        glUniform1f(glGetUniformLocation(mProgramCurrent, "W"), mW);
 
         glBindVertexArray(mVAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
         CheckGLError();
+        return 0;
     }
 
 private:
 
-
-    void setFloat(const char *name, float value)
-    { 
-        glUniform1f(glGetUniformLocation(mProgram, name), value); 
-    }
-
-    GLuint mProgram;
+    GLuint mProgramFloatSampler;
+    GLuint mProgramIntSampler;
+    GLuint mProgramCurrent;
     GLuint mVAO, mVBO, mEBO;
     GLuint mTexture;
 

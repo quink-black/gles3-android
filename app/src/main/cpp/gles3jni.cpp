@@ -56,7 +56,7 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
         return;
     }
 
-    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
     std::string texDataType = "float";
     if (!hasFloatExt)
         texDataType = "uint16_t";
@@ -67,10 +67,14 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
         return;
 
     g_renderer = ToneMap::CreateToneMap();
-    if (g_renderer->Init(img)) {
-        delete g_renderer;
-        g_renderer = nullptr;;
-    }
+    if (g_renderer->Init())
+        goto error;
+    if (g_renderer->UpLoadTexture(img))
+        goto error;
+    return;
+error:
+    delete g_renderer;
+    g_renderer = nullptr;;
 }
 
 JNIEXPORT void JNICALL
