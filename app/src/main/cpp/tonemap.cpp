@@ -20,7 +20,7 @@ void main()
 }
 )";
 
-static const char *FRAG_SHADER_A =
+static const char *FRAG_SHADER_INTEGER_SAMPLER =
 R"(#version 300 es
 precision mediump float;
 precision mediump usampler2D;
@@ -66,7 +66,7 @@ void main()
 }
 )";
 
-static const char *FRAG_SHADER_B =
+static const char *FRAG_SHADER_FLOAT_SAMPLER =
 R"(#version 300 es
 precision mediump float;
 uniform sampler2D source;
@@ -127,15 +127,11 @@ public:
         mW(11.2f) {
     }
 
-    int Init(const char *filename) override {
-        int ret = 0;
-        //ALOGD("%s", vertex_shader);
-        //ALOGD("%s", frag_shader);
-        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
-        if (hasFloatExt)
-            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_B);
+    int Init(std::shared_ptr<ImageDecoder> img) override {
+        if (img->mDataType == "uint16_t")
+            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_INTEGER_SAMPLER);
         else
-            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_A);
+            mProgram = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_FLOAT_SAMPLER);
         if (!mProgram)
             return -1;
 
@@ -180,16 +176,6 @@ public:
         glUniform1i(glGetUniformLocation(mProgram, "source"), 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
-
-        std::unique_ptr<ImageDecoder> img(ImageDecoder::CreateImageDecoder("OpenEXR"));
-        if (hasFloatExt)
-            ret = img->Decode(filename, "float");
-        else
-            ret = img->Decode(filename, "uint16_t");
-
-        if (ret) {
-            return -1;
-        }
 
         GLint internalformat;
         GLenum format, type;

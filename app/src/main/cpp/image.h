@@ -2,10 +2,11 @@
 #define TONEMAP_IMAGE_H
 
 #include <stdint.h>
+#include <memory>
 #include <string>
 
 struct ImageDecoder {
-    static ImageDecoder *CreateImageDecoder(const char *fileType);
+    static std::shared_ptr<ImageDecoder> CreateImageDecoder(const char *fileType);
 
     ImageDecoder();
     virtual ~ImageDecoder();

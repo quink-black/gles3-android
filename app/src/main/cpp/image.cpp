@@ -18,9 +18,9 @@ struct OpenEXRImageDecoder : public ImageDecoder {
     int Decode(const char *file, const char *dataType) override;
 };
 
-ImageDecoder *ImageDecoder::CreateImageDecoder(const char *fileType) {
+std::shared_ptr<ImageDecoder> ImageDecoder::CreateImageDecoder(const char *fileType) {
     if (!strcasecmp(fileType, "OpenEXR"))
-        return new OpenEXRImageDecoder();
+        return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
     else
         return nullptr;
 }

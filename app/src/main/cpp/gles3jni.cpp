@@ -41,7 +41,7 @@ JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     if (g_renderer) {
         delete g_renderer;
-        g_renderer = NULL;
+        g_renderer = nullptr;
     }
 
     OpenGL_Helper::PrintGLString("Version", GL_VERSION);
@@ -51,11 +51,25 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     OpenGL_Helper::SetupDebugCallback();
 
     const char* versionStr = (const char*)glGetString(GL_VERSION);
-    if (strstr(versionStr, "OpenGL ES 3.")) {
-        g_renderer = ToneMap::CreateToneMap();
-        g_renderer->Init("/sdcard/test.exr");
-    } else {
+    if (!strstr(versionStr, "OpenGL ES 3.")) {
         ALOGE("Unsupported OpenGL ES version");
+        return;
+    }
+
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
+    std::string texDataType = "float";
+    if (!hasFloatExt)
+        texDataType = "uint16_t";
+    ALOGD("texture data type %s", texDataType.c_str());
+
+    auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
+    if (img->Decode("/sdcard/test.exr", texDataType.c_str()))
+        return;
+
+    g_renderer = ToneMap::CreateToneMap();
+    if (g_renderer->Init(img)) {
+        delete g_renderer;
+        g_renderer = nullptr;;
     }
 }
 

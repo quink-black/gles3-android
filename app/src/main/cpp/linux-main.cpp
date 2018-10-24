@@ -50,8 +50,17 @@ int main(int argc, char *argv[])
     OpenGL_Helper::PrintGLExtension();
     OpenGL_Helper::SetupDebugCallback();
 
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("EXT_color_buffer_float");
+    std::string texDataType = "float";
+    if (!hasFloatExt)
+        texDataType = "uint16_t";
+    ALOGD("texture data type %s", texDataType.c_str());
+
+    auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
+    if (img->Decode("test.exr", texDataType.c_str()))
+        return 1;
     ToneMap *toneMap = ToneMap::CreateToneMap();
-    if (toneMap->Init("test.exr"))
+    if (toneMap->Init(img))
         return 1;
 
     while (!glfwWindowShouldClose(window)) {
