@@ -64,13 +64,14 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     printGlString("Renderer", GL_RENDERER);
 
     ALOGD("========= OpenGL extensions begin ========");
-    char *tmp = strdup((const char *)glGetString(GL_EXTENSIONS));
-    char *p = strtok(tmp, " ");
-    while (p) {
-        ALOGD("%s", p);
-        p = strtok(nullptr, " ");
+    char *exts = strdup((const char *)glGetString(GL_EXTENSIONS));
+    char *saveptr;
+    char *token = strtok_r(exts, " ", &saveptr);
+    while (token) {
+        ALOGD("%s", token);
+        token = strtok_r(nullptr, " ", &saveptr);
     }
-    free(tmp);
+    free(exts);
     ALOGD("========= OpenGL extensions end ========");
 
     auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");

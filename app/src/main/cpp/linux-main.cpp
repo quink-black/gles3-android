@@ -1,3 +1,4 @@
+#include <string.h>
 #define GLFW_INCLUDE_ES3    1
 #define GLFW_EXPOSE_NATIVE_EGL  1
 #include <GLFW/glfw3.h>
@@ -68,7 +69,16 @@ int main(int argc, char *argv[])
     printGlString("Version", GL_VERSION);
     printGlString("Vendor", GL_VENDOR);
     printGlString("Renderer", GL_RENDERER);
-    //printGlString("Extensions", GL_EXTENSIONS);
+    ALOGD("========= OpenGL extensions begin ========");
+    char *exts = strdup((const char *)glGetString(GL_EXTENSIONS));
+    char *saveptr;
+    char *token = strtok_r(exts, " ", &saveptr);
+    while (token) {
+        ALOGD("%s", token);
+        token = strtok_r(nullptr, " ", &saveptr);
+    }
+    free(exts);
+    ALOGD("========= OpenGL extensions end ========");
 
     ToneMap *toneMap = ToneMap::CreateToneMap();
     if (toneMap->Init("test.exr"))

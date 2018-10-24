@@ -1,4 +1,5 @@
-CXXFLAGS := -g -O0 -std=c++11 -I. -fsanitize=address
+CXXFLAGS := -g -O0 -std=c++11 -I.
+#CXXFLAGS += -fsanitize=address
 LDFLAGS := $(shell pkg-config --libs glfw3 glesv2 egl) -pthread
 
 all: main
