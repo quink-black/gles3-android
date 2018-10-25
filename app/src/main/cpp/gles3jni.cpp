@@ -84,6 +84,8 @@ Java_com_android_gles3jni_GLES3JNILib_resize(JNIEnv* env, jobject obj, jint widt
 
 JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (g_renderer) {
         g_renderer->Draw();
     }

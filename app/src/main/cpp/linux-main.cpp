@@ -68,7 +68,9 @@ int main(int argc, char *argv[])
     while (!glfwWindowShouldClose(window)) {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         toneMap->Draw();
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

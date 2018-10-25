@@ -207,10 +207,6 @@ public:
     }
 
     int Draw() override {
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        CheckGLError();
-
         glUseProgram(mProgramCurrent);
         glUniform1f(glGetUniformLocation(mProgramCurrent, "gamma"), mGamma);
         glUniform1f(glGetUniformLocation(mProgramCurrent, "A"), mA);
