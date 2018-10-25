@@ -78,6 +78,10 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
     EXRVersion version;
     EXRHeader header;
     const char *errMsg = nullptr;
+    int ret;
+    int num_channels;
+    int idxR = -1, idxG = -1, idxB = -1;
+    size_t pixels;
 
     InitEXRImage(&img);
     InitEXRHeader(&header);
@@ -86,7 +90,8 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
         ALOGE("could not parser exr header: %s", errMsg);
         FreeEXRHeader(&header);
         FreeEXRImage(&img);
-        return -1;
+        ret = -1;
+        goto out;
     }
     for (int i = 0; i < header.num_channels; ++i) {
         if (header.requested_pixel_types[i] == TINYEXR_PIXELTYPE_HALF)
@@ -94,26 +99,23 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
     }
     if (LoadEXRImageFromFile(&img, &header, file, &errMsg)) {
         ALOGE("could not open exr file: %s", errMsg);
-        FreeEXRHeader(&header);
-        FreeEXRImage(&img);
-        return -1;
+        ret = -1;
+        goto out;
     }
 
     ALOGD("image width %d, height %d", img.width, img.height);
     mWidth = img.width;
     mHeight = img.height;
 
-    int channel = header.num_channels;
-    if (channel > 3)
-        channel = 3;
-    else if (channel < 3) {
-        ALOGE("not support %d channels", channel);
-        FreeEXRHeader(&header);
-        FreeEXRImage(&img);
-        return -1;
+    num_channels = header.num_channels;
+    if (num_channels > 3)
+        num_channels = 3;
+    else if (num_channels < 3) {
+        ALOGE("not support %d channels", num_channels);
+        ret = -1;
+        goto out;
     }
 
-    int idxR = -1, idxG = -1, idxB = -1;
     for (int c = 0; c < header.num_channels; ++c) {
         if (strcmp(header.channels[c].name, "R") == 0)
             idxR = c;
@@ -125,13 +127,25 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
             ;
         else {
             ALOGE("channel name %s", header.channels[c].name);
-            return -1;
+            ret = -1;
+            goto out;
         }
     }
-    mChannel = "RGB";
+    mChannel = "";
+    if (idxR != -1)
+        mChannel += "R";
+    if (idxG != -1)
+        mChannel += "G";
+    if (idxB != -1)
+        mChannel += "B";
 
+    if (mChannel != "RGB") {
+        ALOGE("channel is incomplete: %s", mChannel.c_str());
+        ret = -1;
+        goto out;
+    }
 
-    size_t pixels = mWidth * mHeight * channel;
+    pixels = mWidth * mHeight * num_channels;
     if (mDataType == "float") {
         mDataF = (float *)malloc(pixels * sizeof(float));
         for (int i = 0; i < mHeight; ++i) {
@@ -152,7 +166,7 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
                 convert(img.images[idxB], index, header.pixel_types[idxB], &mDataU16[index * 3 + 2]);
             }
         }
-    } else if (mDataType == "uint8_t") {
+    } else {
         mDataU8 = (uint8_t *)malloc(pixels * sizeof(uint8_t));
         for (int i = 0; i < mHeight; ++i) {
             for (int j = 0; j < mWidth; ++j) {
@@ -162,10 +176,12 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
                 convert(img.images[idxB], index, header.pixel_types[idxB], &mDataU8[index * 3 + 2]);
             }
         }
-    } else {
-        assert(false);
-        return -1;
     }
+    ret = 0;
 
-    return 0;
+out:
+    FreeEXRHeader(&header);
+    FreeEXRImage(&img);
+
+    return ret;
 }
