@@ -129,6 +129,15 @@ public:
         mW(11.2f) {
     }
 
+    virtual ~ToneMapImpl() {
+        glDeleteTextures(1, &mTexture);
+        glDeleteBuffers(1, &mVBO);
+        glDeleteBuffers(1, &mEBO);
+        glDeleteVertexArrays(1, &mVAO);
+        glDeleteProgram(mProgramFloatSampler);
+        glDeleteProgram(mProgramIntSampler);
+    }
+
     int Init() override {
         mProgramFloatSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_FLOAT_SAMPLER);
         mProgramIntSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_INTEGER_SAMPLER);
