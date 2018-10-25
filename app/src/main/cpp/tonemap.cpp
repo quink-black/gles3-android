@@ -164,9 +164,6 @@ public:
 
         glGenTextures(1, &mTexture);
         glBindTexture(GL_TEXTURE_2D, mTexture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        CheckGLError();
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
@@ -174,10 +171,16 @@ public:
     }
 
     int UpLoadTexture(std::shared_ptr<ImageDecoder> img) override {
-        if (img->mDataType == "uint16_t")
+        if (img->mDataType == "uint16_t") {
             mProgramCurrent = mProgramIntSampler;
-        else
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        } else {
             mProgramCurrent = mProgramFloatSampler;
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        }
+        CheckGLError();
 
         GLint internalformat;
         GLenum format, type;
