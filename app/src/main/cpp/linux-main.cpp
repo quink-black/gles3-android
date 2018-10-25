@@ -56,9 +56,11 @@ int main(int argc, char *argv[])
         texDataType = "uint16_t";
     ALOGD("texture data type %s", texDataType.c_str());
 
+    const char *filename = argc > 1 ? argv[1] : "test.exr";
     auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
-    if (img->Decode("test.exr", texDataType.c_str()))
+    if (img->Decode(filename, texDataType.c_str()))
         return 1;
+    glfwSetWindowSize(window, img->mWidth, img->mHeight);
     std::shared_ptr<ToneMap> toneMap(ToneMap::CreateToneMap());
     if (toneMap->Init())
         return 1;
@@ -75,6 +77,7 @@ int main(int argc, char *argv[])
         glfwPollEvents();
     }
 
+    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }
