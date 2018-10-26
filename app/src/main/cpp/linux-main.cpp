@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
         return 1;
     glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
 
-    std::shared_ptr<ToneMap> toneMapA(ToneMap::CreateToneMap());
+    std::shared_ptr<ToneMap> toneMapA(ToneMap::CreateToneMap("Hable"));
     ToneMap::ImageCoord coordA = {
         {-1.0f, 1.0f},
         {-1.0f, -1.0f},
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     if (toneMapA->Init(coordA))
         return 1;
 
-    std::shared_ptr<ToneMap> toneMapB(ToneMap::CreateToneMap());
+    std::shared_ptr<ToneMap> toneMapB(ToneMap::CreateToneMap(""));
     ToneMap::ImageCoord coordB = {
         {0.0f, 1.0f},
         {0.0f, -1.0f},
@@ -86,9 +86,9 @@ int main(int argc, char *argv[])
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        toneMapA->UpLoadTexture(img);
+        toneMapA->UploadTexture(img);
         toneMapA->Draw();
-        toneMapB->UpLoadTexture(img);
+        toneMapB->UploadTexture(img);
         toneMapB->Draw();
 
         glfwSwapBuffers(window);
