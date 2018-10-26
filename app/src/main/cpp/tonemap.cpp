@@ -139,24 +139,34 @@ public:
     }
 
     int Init() override {
+        const ImageCoord coord = {
+            {-1.0f, 1.0f},
+            {-1.0f, -1.0f},
+            {1.0f, -1.0f},
+            {1.0f, 1.0f}
+        };
+        return Init(coord);
+    }
+
+    int Init(const ImageCoord &coord) override {
         mProgramFloatSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_FLOAT_SAMPLER);
         mProgramIntSampler = OpenGL_Helper::CreateProgram(VERTEX_SHADER, FRAG_SHADER_INTEGER_SAMPLER);
         glGenVertexArrays(1, &mVAO);
         glBindVertexArray(mVAO);
         CheckGLError();
 
-        static float vbo[] = {
-            -1.0f, 1.0f,    0.0f, 0.0f,
-            -1.0f, -1.0f,   0.0f, 1.0f,
-            1.0f, -1.0f,    1.0f, 1.0f,
-            1.0f, 1.0f,     1.0f, 0.0f,
+        float vbo[] = {
+            coord.mTopLeft.mX, coord.mTopLeft.mY,           0.0f, 0.0f,
+            coord.mBottomLeft.mX, coord.mBottomLeft.mY,     0.0f, 1.0f,
+            coord.mBottomRight.mX, coord.mBottomRight.mY,   1.0f, 1.0f,
+            coord.mTopRight.mX, coord.mTopRight.mY,         1.0f, 0.0f,
         };
         glGenBuffers(1, &mVBO);
         glBindBuffer(GL_ARRAY_BUFFER, mVBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vbo), vbo, GL_STATIC_DRAW);
         CheckGLError();
 
-        static GLushort ebo[] = {
+        GLushort ebo[] = {
             0, 1, 2,
             0, 2, 3,
         };
@@ -172,9 +182,6 @@ public:
         CheckGLError();
 
         glGenTextures(1, &mTexture);
-        glBindTexture(GL_TEXTURE_2D, mTexture);
-
-        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mTexture);
         return 0;
     }
@@ -210,6 +217,8 @@ public:
             return -1;
         }
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, mTexture);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, img->mWidth);
         glTexImage2D(GL_TEXTURE_2D, 0, internalformat, img->mWidth, img->mHeight, 0, format, type, img->mData);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -230,6 +239,8 @@ public:
         glUniform1f(glGetUniformLocation(mProgramCurrent, "W"), mW);
 
         glBindVertexArray(mVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, mTexture);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
         CheckGLError();
         return 0;

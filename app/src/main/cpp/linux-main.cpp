@@ -56,22 +56,40 @@ int main(int argc, char *argv[])
         texDataType = "uint16_t";
     ALOGD("texture data type %s", texDataType.c_str());
 
-    const char *filename = argc > 1 ? argv[1] : "test.exr";
+    const char *filename = argc > 1 ? argv[1] : "Tree.exr";
     auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
     if (img->Decode(filename, texDataType.c_str()))
         return 1;
-    glfwSetWindowSize(window, img->mWidth, img->mHeight);
-    std::shared_ptr<ToneMap> toneMap(ToneMap::CreateToneMap());
-    if (toneMap->Init())
+    glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
+
+    std::shared_ptr<ToneMap> toneMapA(ToneMap::CreateToneMap());
+    ToneMap::ImageCoord coordA = {
+        {-1.0f, 1.0f},
+        {-1.0f, -1.0f},
+        {0.0f, -1.0f},
+        {0.0f, 1.0f},
+    };
+    if (toneMapA->Init(coordA))
         return 1;
-    if (toneMap->UpLoadTexture(img))
+
+    std::shared_ptr<ToneMap> toneMapB(ToneMap::CreateToneMap());
+    ToneMap::ImageCoord coordB = {
+        {0.0f, 1.0f},
+        {0.0f, -1.0f},
+        {1.0f, -1.0f},
+        {1.0f, 1.0f},
+    };
+    if (toneMapB->Init(coordB))
         return 1;
 
     while (!glfwWindowShouldClose(window)) {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        toneMap->Draw();
+        toneMapA->UpLoadTexture(img);
+        toneMapA->Draw();
+        toneMapB->UpLoadTexture(img);
+        toneMapB->Draw();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
