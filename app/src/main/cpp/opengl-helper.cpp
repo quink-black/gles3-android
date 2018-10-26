@@ -12,6 +12,55 @@
 #define GL_DEBUG_OUTPUT 0x92E0
 #endif
 
+#ifndef GL_DEBUG_SOURCE_API
+#define GL_DEBUG_SOURCE_API               0x8246
+#endif
+#ifndef GL_DEBUG_SOURCE_WINDOW_SYSTEM
+#define GL_DEBUG_SOURCE_WINDOW_SYSTEM     0x8247
+#endif
+#ifndef GL_DEBUG_SOURCE_SHADER_COMPILER
+#define GL_DEBUG_SOURCE_SHADER_COMPILER   0x8248
+#endif
+#ifndef GL_DEBUG_SOURCE_THIRD_PARTY
+#define GL_DEBUG_SOURCE_THIRD_PARTY       0x8249
+#endif
+#ifndef GL_DEBUG_SOURCE_APPLICATION
+#define GL_DEBUG_SOURCE_APPLICATION       0x824A
+#endif
+#ifndef GL_DEBUG_SOURCE_OTHER
+#define GL_DEBUG_SOURCE_OTHER             0x824B
+#endif
+#ifndef GL_DEBUG_TYPE_ERROR
+#define GL_DEBUG_TYPE_ERROR               0x824C
+#endif
+#ifndef GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
+#endif
+#ifndef GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
+#endif
+#ifndef GL_DEBUG_TYPE_PORTABILITY
+#define GL_DEBUG_TYPE_PORTABILITY         0x824F
+#endif
+#ifndef GL_DEBUG_TYPE_PERFORMANCE
+#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
+#endif
+#ifndef GL_DEBUG_TYPE_OTHER
+#define GL_DEBUG_TYPE_OTHER               0x8251
+#endif
+#ifndef GL_DEBUG_SEVERITY_HIGH
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+#endif
+#ifndef GL_DEBUG_SEVERITY_MEDIUM
+#define GL_DEBUG_SEVERITY_MEDIUM          0x9147
+#endif
+#ifndef GL_DEBUG_SEVERITY_LOW
+#define GL_DEBUG_SEVERITY_LOW             0x9148
+#endif
+#ifndef GL_DEBUG_SEVERITY_NOTIFICATION
+#define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
+#endif
+
 void OpenGL_Helper::PrintGLString(const char* name, int s) {
     const char* v = (const char*)glGetString(s);
     ALOGD("GL %s: %s", name, v);
@@ -34,11 +83,73 @@ static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
         GLenum severity, GLsizei length, const GLchar* message,
         const void* userParam)
 {
-    (void)source;
+    const char *source_str;
+    switch (source) {
+        case GL_DEBUG_SOURCE_API:
+            source_str = "api";
+            break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+            source_str = "window system";
+            break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER:
+            source_str = "shader compiler";
+            break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:
+            source_str = "third party";
+            break;
+        case GL_DEBUG_SOURCE_APPLICATION:
+            source_str = "application";
+            break;
+        case GL_DEBUG_SOURCE_OTHER:
+        default:
+            source_str = "other";
+            break;
+    }
+
+    const char *type_str;
+    switch (type) {
+        case GL_DEBUG_TYPE_ERROR:
+            type_str = "error";
+            break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+            type_str = "deprecated behavior";
+            break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+            type_str = "undefined behavior";
+            break;
+        case GL_DEBUG_TYPE_PORTABILITY:
+            type_str = "portability";
+            break;
+        case GL_DEBUG_TYPE_PERFORMANCE:
+            type_str = "performance";
+            break;
+        case GL_DEBUG_TYPE_OTHER:
+            type_str = "other";
+        default:
+            break;
+    }
+
+    const char *severity_str;
+    switch (severity) {
+        case GL_DEBUG_SEVERITY_HIGH:
+            severity_str = "high";
+            break;
+        case GL_DEBUG_SEVERITY_MEDIUM:
+            severity_str = "medium";
+            break;
+        case GL_DEBUG_SEVERITY_LOW:
+            severity_str = "low";
+            break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION:
+            severity_str = "notification";
+            break;
+    }
+
     (void)id;
     (void)length;
     (void)userParam;
-    ALOGE("GL CALLBACK: type = 0x%x, severity = 0x%x, message = %s", type, severity, message);
+    ALOGE("GL CALLBACK: source [%s], type [%s], severity [%s], message [%s]",
+            source_str, type_str, severity_str, message);
 }
 
 bool OpenGL_Helper::SetupDebugCallback(void) {
