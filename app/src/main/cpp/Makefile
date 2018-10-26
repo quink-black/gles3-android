@@ -5,7 +5,7 @@ LDFLAGS := $(shell pkg-config --libs glfw3 glesv2 egl) -pthread
 all: main
 	./main
 
-main: image.cpp opengl-helper.cpp tonemap.cpp linux-main.cpp
+main: image.cpp opengl-helper.cpp perf-monitor.cpp tonemap.cpp linux-main.cpp
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:

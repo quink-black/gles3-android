@@ -24,6 +24,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions -Wa
 set(OPENGL_LIB GLESv3)
 
 add_library(gles3jni SHARED
+            perf-monitor.cpp
             gles3jni.cpp
 	    image.cpp
 	    opengl-helper.cpp

@@ -20,12 +20,16 @@
 #include <string.h>
 #include <time.h>
 
+#include "perf-monitor.h"
 #include "log.h"
 #include "tonemap.h"
 #include "opengl-helper.h"
 
 static ToneMap *g_Plain;
 static ToneMap *g_Hable;
+static PerfMonitor *g_Upload;
+static PerfMonitor *g_Draw;
+static PerfMonitor *g_Fps;
 
 static inline void printGlString(const char* name, GLenum s) {
     const char* v = (const char*)glGetString(s);
@@ -97,6 +101,23 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     g_Plain = ToneMap::CreateToneMap("");
     if (g_Plain->Init(coordB))
         goto error;
+
+    if (g_Upload == nullptr) {
+        g_Upload = new PerfMonitor(100, [](long long t) {
+                ALOGD("upload takes %lld us", t);
+            });
+    }
+    if (g_Draw == nullptr) {
+        g_Draw = new PerfMonitor(100, [](long long t) {
+                ALOGD("draw takes %lld us", t);
+            });
+    }
+    if (g_Fps == nullptr) {
+        g_Fps = new PerfMonitor(100, [](long long t) {
+                ALOGD("fps %f", 1000000.0 / t);
+            });
+    }
+
     return;
 
 error:
@@ -116,8 +137,14 @@ Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (g_Hable) {
+        auto t1 = std::chrono::steady_clock::now();
         g_Hable->UploadTexture(GetImage());
+        auto t2 = std::chrono::steady_clock::now();
         g_Hable->Draw();
+        auto t3 = std::chrono::steady_clock::now();
+        g_Upload->Update(t2 - t1);
+        g_Draw->Update(t3 - t2);
+        g_Fps->Update(t3);
     }
     if (g_Plain) {
         g_Plain->UploadTexture(GetImage());

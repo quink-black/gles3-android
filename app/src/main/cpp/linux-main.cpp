@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
+#include "perf-monitor.h"
 #include "log.h"
 #include "opengl-helper.h"
 #include "tonemap.h"
@@ -62,37 +63,65 @@ int main(int argc, char *argv[])
         return 1;
     glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
 
-    std::shared_ptr<ToneMap> toneMapA(ToneMap::CreateToneMap("Hable"));
+    std::shared_ptr<ToneMap> hable(ToneMap::CreateToneMap("Hable"));
     ToneMap::ImageCoord coordA = {
         {-1.0f, 1.0f},
         {-1.0f, -1.0f},
         {0.0f, -1.0f},
         {0.0f, 1.0f},
     };
-    if (toneMapA->Init(coordA))
+    if (hable->Init(coordA))
         return 1;
 
-    std::shared_ptr<ToneMap> toneMapB(ToneMap::CreateToneMap(""));
+    std::shared_ptr<ToneMap> plain(ToneMap::CreateToneMap(""));
     ToneMap::ImageCoord coordB = {
         {0.0f, 1.0f},
         {0.0f, -1.0f},
         {1.0f, -1.0f},
         {1.0f, 1.0f},
     };
-    if (toneMapB->Init(coordB))
+    if (plain->Init(coordB))
         return 1;
 
+    PerfMonitor hableUpload(100, [](long long t) {
+                ALOGD("hable upload takes %lld us", t);
+            });
+    PerfMonitor hableDraw(100, [](long long t) {
+                ALOGD("hable draw takes %lld us", t);
+            });
+    PerfMonitor plainUpload(100, [](long long t) {
+                ALOGD("plain upload takes %lld us", t);
+            });
+    PerfMonitor plainDraw(100, [](long long t) {
+                ALOGD("plain draw takes %lld us", t);
+            });
+    PerfMonitor fps(100, [](long long t) {
+                ALOGD("fps %f", 1000000.0 / t);
+            });
     while (!glfwWindowShouldClose(window)) {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        toneMapA->UploadTexture(img);
-        toneMapA->Draw();
-        toneMapB->UploadTexture(img);
-        toneMapB->Draw();
+        auto t1 = std::chrono::steady_clock::now();
+
+        hable->UploadTexture(img);
+        auto t2 = std::chrono::steady_clock::now();
+        hable->Draw();
+        auto t3 = std::chrono::steady_clock::now();
+
+        plain->UploadTexture(img);
+        auto t4 = std::chrono::steady_clock::now();
+        plain->Draw();
+        auto t5 = std::chrono::steady_clock::now();
+
+        hableUpload.Update(t2 -t1);
+        hableDraw.Update(t3 - t2);
+        plainUpload.Update(t4 - t3);
+        plainDraw.Update(t5 - t4);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        fps.Update(std::chrono::steady_clock::now());
     }
 
     glfwDestroyWindow(window);
