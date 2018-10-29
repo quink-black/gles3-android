@@ -194,21 +194,21 @@ public:
     std::string GetFragWithIntSampleSrc() override;
 
 private:
-    float mA, mB, mC, mD, mE, mF, mW;
+    /* F(x) = ((x*(A*x + C*B) + D*E) / (x*(A*x + B) + D*F)) - E/F;
+     * FinalColor = F(Linearcolor) / F(LinearWhite)
+     */
+    float mA = 0.15f;   // Shoulder Strength
+    float mB = 0.50f;   // Linear Strength
+    float mC = 0.10f;   // Linear Angle
+    float mD = 0.20f;   // Toe Strength
+    float mE = 0.02f;   // Toe Numerator
+    float mF = 0.30f;   // Tone Denominator E/F = Toe Angle
+    float mW = 11.2f;   // Linear White Point Value
 };
 
-Hable::Hable() :
-    mA(0.22f),
-    mB(0.3f),
-    mC(0.1f),
-    mD(0.2f),
-    mE(0.01f),
-    mF(0.3f),
-    mW(11.2f) {
-}
+Hable::Hable() { }
 
-Hable::~Hable() {
-}
+Hable::~Hable() { }
 
 std::string Hable::GetVertexSrc() {
     return HABLE_VERTEX;
