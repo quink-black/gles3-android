@@ -8,8 +8,8 @@
 #include "stb_image.h"
 #include "log.h"
 
-ImageDecoder::ImageDecoder() 
-:   mWidth(0), mHeight(0), mData(nullptr) {
+ImageDecoder::ImageDecoder()
+:   mWidth(0), mHeight(0), mData(nullptr), mGamma(1.0f) {
 }
 
 ImageDecoder::~ImageDecoder() {
@@ -20,6 +20,7 @@ void ImageDecoder::Reset() {
     mWidth = 0;
     mHeight = 0;
     free(mData); mData = nullptr;
+    mGamma = 1.0f;
     mDataType = "";
     mChannel = "";
 }

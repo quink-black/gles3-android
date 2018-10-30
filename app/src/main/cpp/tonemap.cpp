@@ -90,7 +90,6 @@ int Plain::Init(const ImageCoord &coord) {
         return -1;
     }
     glUseProgram(mProgramFloatSampler);
-    glUniform1f(glGetUniformLocation(mProgramFloatSampler, "gamma"), mGamma);
     glUseProgram(mProgramIntSampler);
     glUniform1f(glGetUniformLocation(mProgramIntSampler, "gamma"), mGamma);
     CheckGLError();
@@ -162,6 +161,8 @@ int Plain::UploadTexture(std::shared_ptr<ImageDecoder> img) {
         return -1;
     }
 
+    mGamma = 2.2 / img->mGamma;
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexture);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, img->mWidth);
@@ -174,9 +175,12 @@ int Plain::UploadTexture(std::shared_ptr<ImageDecoder> img) {
 
 int Plain::Draw() {
     glUseProgram(mProgramCurrent);
+    glUniform1f(glGetUniformLocation(mProgramFloatSampler, "gamma"), mGamma);
+
     glBindVertexArray(mVAO);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexture);
+
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
     CheckGLError();
     return 0;

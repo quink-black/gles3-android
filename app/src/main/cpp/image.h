@@ -21,6 +21,7 @@ struct ImageDecoder {
         uint16_t *mDataU16;
         uint8_t *mDataU8;
     };
+    float mGamma;
     std::string mChannel;
     std::string mDataType;
 
