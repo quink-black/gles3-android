@@ -33,11 +33,17 @@ struct HdrImageDecoder : public ImageDecoder {
     int Decode(const char *file, const char *dataType) override;
 };
 
+struct LdrImageDecoder : public ImageDecoder {
+    int Decode(const char *file, const char *dataType) override;
+};
+
 std::shared_ptr<ImageDecoder> ImageDecoder::CreateImageDecoder(const char *fileType) {
     if (!strcasecmp(fileType, "OpenEXR"))
         return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
     else if (!strcasecmp(fileType, "hdr"))
         return std::shared_ptr<ImageDecoder>(new HdrImageDecoder());
+    else if (!strcasecmp(fileType, "ldr"))
+        return std::shared_ptr<ImageDecoder>(new LdrImageDecoder());
     else
         return nullptr;
 }
@@ -242,6 +248,27 @@ int HdrImageDecoder::Decode(const char *file, const char *dataType) {
         }
     }
     free(data);
+
+    return 0;
+}
+
+int LdrImageDecoder::Decode(const char *file, const char *dataType) {
+    int comp = 0;
+
+    Reset();
+
+    mDataU8 = stbi_load(file, &mWidth, &mHeight, &comp, 3);
+    ALOGD("width %d, height %d, comp %d", mWidth, mHeight, comp);
+    if (mDataU8 == nullptr)
+        return -1;
+    if (comp < 3) {
+        return -1;
+    }
+
+    (void)dataType;
+    mDataType = "uint8_t";
+    mChannel = "RGB";
+    mGamma = 2.2f;
 
     return 0;
 }

@@ -76,8 +76,11 @@ int main(int argc, char *argv[])
     }
 
     auto img = ImageDecoder::CreateImageDecoder(fileType.c_str());
-    if (img->Decode(filename.c_str(), texDataType.c_str()))
-        return 1;
+    if (img->Decode(filename.c_str(), texDataType.c_str())) {
+        img = ImageDecoder::CreateImageDecoder("ldr");
+        if (img->Decode(filename.c_str(), texDataType.c_str()))
+            return 1;
+    }
     glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
 
     std::shared_ptr<ToneMap> hable(ToneMap::CreateToneMap("Hable"));
