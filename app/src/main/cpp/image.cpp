@@ -4,6 +4,8 @@
 
 #define TINYEXR_IMPLEMENTATION
 #include "tinyexr.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "log.h"
 
 ImageDecoder::ImageDecoder() 
@@ -14,13 +16,27 @@ ImageDecoder::~ImageDecoder() {
     free(mData);
 }
 
+void ImageDecoder::Reset() {
+    mWidth = 0;
+    mHeight = 0;
+    free(mData); mData = nullptr;
+    mDataType = "";
+    mChannel = "";
+}
+
 struct OpenEXRImageDecoder : public ImageDecoder {
+    int Decode(const char *file, const char *dataType) override;
+};
+
+struct HdrImageDecoder : public ImageDecoder {
     int Decode(const char *file, const char *dataType) override;
 };
 
 std::shared_ptr<ImageDecoder> ImageDecoder::CreateImageDecoder(const char *fileType) {
     if (!strcasecmp(fileType, "OpenEXR"))
         return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
+    else if (!strcasecmp(fileType, "hdr"))
+        return std::shared_ptr<ImageDecoder>(new HdrImageDecoder());
     else
         return nullptr;
 }
@@ -65,6 +81,8 @@ static void convert(void *p, int offset, int type, float *dst) {
 }
 
 int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
+    Reset();
+
     mDataType = dataType;
     if (mDataType != "float" &&
             mDataType != "uint16_t" &&
@@ -184,4 +202,45 @@ out:
     FreeEXRImage(&img);
 
     return ret;
+}
+
+int HdrImageDecoder::Decode(const char *file, const char *dataType) {
+    int comp = 0;
+
+    Reset();
+
+    if (!stbi_is_hdr(file)) {
+        ALOGD("%s is not HDR?", file);
+        return -1;
+    }
+
+    float *data = stbi_loadf(file, &mWidth, &mHeight, &comp, 0);
+    ALOGD("width %d, height %d, comp %d", mWidth, mHeight, comp);
+    if (data == nullptr)
+        return -1;
+    if (comp != 3) {
+        ALOGE("not support channel != 3");
+        free(data);
+        return -1;
+    }
+
+    mDataType = dataType;
+    mChannel = "RGB";
+    if (mDataType == "float") {
+        mDataF = data;
+        data = nullptr;
+    } else if (mDataType == "uint16_t") {
+        mDataU16 = (uint16_t *)malloc(mWidth * mHeight * 3 * sizeof(uint16_t));
+        for (int i = 0; i < mWidth * mHeight * 3; ++i) {
+            mDataU16[i] = std::min<int>(data[i] * 255, UINT16_MAX);
+        }
+    } else if (mDataType == "uint8_t") {
+        mDataU8 = (uint8_t *)malloc(mWidth * mHeight * 3);
+        for (int i = 0; i < mWidth * mHeight * 3; ++i) {
+            mDataU8[i] = std::min<int>(data[i] * 255, UINT8_MAX);
+        }
+    }
+    free(data);
+
+    return 0;
 }

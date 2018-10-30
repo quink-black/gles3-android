@@ -33,7 +33,7 @@ protected:
     GLuint mProgramCurrent;
     GLuint mVAO, mVBO, mEBO;
     GLuint mTexture;
-    float mGamma;
+    float mGamma = 2.2f;
 };
 
 Plain::Plain() :
@@ -43,8 +43,7 @@ Plain::Plain() :
     mVAO(0),
     mVBO(0),
     mEBO(0),
-    mTexture(0),
-    mGamma(2.2f) {
+    mTexture(0) {
 }
 
 Plain::~Plain() {
@@ -229,7 +228,6 @@ int Hable::Init(const ImageCoord &coord) {
 
     mProgramCurrent = mProgramFloatSampler;
     glUseProgram(mProgramCurrent);
-    glUniform1f(glGetUniformLocation(mProgramCurrent, "gamma"), mGamma);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "A"), mA);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "B"), mB);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "C"), mC);
@@ -240,7 +238,6 @@ int Hable::Init(const ImageCoord &coord) {
 
     mProgramCurrent = mProgramIntSampler;
     glUseProgram(mProgramCurrent);
-    glUniform1f(glGetUniformLocation(mProgramCurrent, "gamma"), mGamma);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "A"), mA);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "B"), mB);
     glUniform1f(glGetUniformLocation(mProgramCurrent, "C"), mC);

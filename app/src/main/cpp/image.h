@@ -23,6 +23,9 @@ struct ImageDecoder {
     };
     std::string mChannel;
     std::string mDataType;
+
+protected:
+    void Reset();
 };
 
 #endif

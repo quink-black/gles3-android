@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
+#include <algorithm>
+
 #include "perf-monitor.h"
 #include "log.h"
 #include "opengl-helper.h"
@@ -57,9 +59,24 @@ int main(int argc, char *argv[])
         texDataType = "uint16_t";
     ALOGD("texture data type %s", texDataType.c_str());
 
-    const char *filename = argc > 1 ? argv[1] : "Tree.exr";
-    auto img = ImageDecoder::CreateImageDecoder("OpenEXR");
-    if (img->Decode(filename, texDataType.c_str()))
+    std::string filename = argc > 1 ? argv[1] : "Tree.exr";
+    const char *fileTypeDefault = "hdr";
+    std::string fileType = fileTypeDefault;
+    auto suffix_pos = filename.rfind(".");
+    if (suffix_pos != std::string::npos) {
+        std::string suffix = filename.substr(suffix_pos);
+        ALOGD("suffix %s", suffix.c_str());
+        std::transform(suffix.begin(), suffix.end(), suffix.begin(), tolower);
+        if (suffix == ".exr")
+            fileType = "OpenEXR";
+        else if (suffix == ".hdr")
+            fileType = "hdr";
+        else
+            fileType = fileTypeDefault;
+    }
+
+    auto img = ImageDecoder::CreateImageDecoder(fileType.c_str());
+    if (img->Decode(filename.c_str(), texDataType.c_str()))
         return 1;
     glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
 
