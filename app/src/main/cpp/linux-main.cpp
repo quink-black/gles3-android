@@ -75,37 +75,27 @@ int main(int argc, char *argv[])
         texDataType = "uint16_t";
     ALOGD("texture data type %s", texDataType.c_str());
 
-    std::string filename = argc > 1 ? argv[1] : "Tree.exr";
-    const char *fileTypeDefault = "hdr";
-    std::string fileType = fileTypeDefault;
-    auto suffix_pos = filename.rfind(".");
-    if (suffix_pos != std::string::npos) {
-        std::string suffix = filename.substr(suffix_pos);
-        ALOGD("suffix %s", suffix.c_str());
-        std::transform(suffix.begin(), suffix.end(), suffix.begin(), tolower);
-        if (suffix == ".exr")
-            fileType = "OpenEXR";
-        else if (suffix == ".hdr")
-            fileType = "hdr";
-        else
-            fileType = fileTypeDefault;
+    std::string filename1 = argc > 1 ? argv[1] : "Tree.exr";
+    std::string filename2 = argc > 2 ? argv[2] : filename1;
+
+    auto img1 = ImageDecoder::CreateByName(filename1.c_str());
+    if (img1->Decode(filename1.c_str(), texDataType.c_str())) {
+        return 1;
     }
 
-    auto img = ImageDecoder::CreateImageDecoder(fileType.c_str());
-    if (img->Decode(filename.c_str(), texDataType.c_str())) {
-        img = ImageDecoder::CreateImageDecoder("ldr");
-        if (img->Decode(filename.c_str(), texDataType.c_str()))
-            return 1;
+    auto img2 = ImageDecoder::CreateByName(filename2.c_str());
+    if (img2->Decode(filename2.c_str(), texDataType.c_str())) {
+        return 1;
     }
 
     bool sideByside = true;
-    if ((float)img->mWidth / img->mHeight > 16.0f / 9.0f)
+    if ((float)img1->mWidth / img1->mHeight > 16.0f / 9.0f)
         sideByside = false;
 
     if (sideByside)
-        glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
+        glfwSetWindowSize(window, img1->mWidth * 2, img1->mHeight);
     else
-        glfwSetWindowSize(window, img->mWidth, img->mHeight * 2);
+        glfwSetWindowSize(window, img1->mWidth, img1->mHeight * 2);
 
     std::shared_ptr<ToneMap> hable(ToneMap::CreateToneMap("Hable"));
     const auto coords = GetCoord(sideByside);
@@ -137,12 +127,12 @@ int main(int argc, char *argv[])
 
         auto t1 = std::chrono::steady_clock::now();
 
-        hable->UploadTexture(img);
+        hable->UploadTexture(img1);
         auto t2 = std::chrono::steady_clock::now();
         hable->Draw();
         auto t3 = std::chrono::steady_clock::now();
 
-        plain->UploadTexture(img);
+        plain->UploadTexture(img2);
         auto t4 = std::chrono::steady_clock::now();
         plain->Draw();
         auto t5 = std::chrono::steady_clock::now();

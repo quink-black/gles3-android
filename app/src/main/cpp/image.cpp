@@ -37,7 +37,7 @@ struct LdrImageDecoder : public ImageDecoder {
     int Decode(const char *file, const char *dataType) override;
 };
 
-std::shared_ptr<ImageDecoder> ImageDecoder::CreateImageDecoder(const char *fileType) {
+std::shared_ptr<ImageDecoder> ImageDecoder::CreateByType(const char *fileType) {
     if (!strcasecmp(fileType, "OpenEXR"))
         return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
     else if (!strcasecmp(fileType, "hdr"))
@@ -46,6 +46,26 @@ std::shared_ptr<ImageDecoder> ImageDecoder::CreateImageDecoder(const char *fileT
         return std::shared_ptr<ImageDecoder>(new LdrImageDecoder());
     else
         return nullptr;
+}
+
+std::shared_ptr<ImageDecoder> ImageDecoder::CreateByName(const char *file) {
+    std::string filename = file;
+    std::string fileType = "ldr";
+
+    auto suffix_pos = filename.rfind(".");
+    if (suffix_pos != std::string::npos) {
+        std::string suffix = filename.substr(suffix_pos);
+        ALOGD("suffix %s", suffix.c_str());
+        std::transform(suffix.begin(), suffix.end(), suffix.begin(), tolower);
+        if (suffix == ".exr")
+            fileType = "OpenEXR";
+        else if (suffix == ".hdr")
+            fileType = "hdr";
+        else
+            fileType = "ldr";
+    }
+
+    return ImageDecoder::CreateByType(fileType.c_str());
 }
 
 template<typename T, typename = typename std::enable_if<std::is_integral<T>::value>>

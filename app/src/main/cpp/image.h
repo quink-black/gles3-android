@@ -6,7 +6,8 @@
 #include <string>
 
 struct ImageDecoder {
-    static std::shared_ptr<ImageDecoder> CreateImageDecoder(const char *fileType);
+    static std::shared_ptr<ImageDecoder> CreateByType(const char *fileType);
+    static std::shared_ptr<ImageDecoder> CreateByName(const char *file);
 
     ImageDecoder();
     virtual ~ImageDecoder();
