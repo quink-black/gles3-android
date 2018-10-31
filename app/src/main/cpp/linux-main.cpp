@@ -89,8 +89,10 @@ int main(int argc, char *argv[])
     }
 
     bool sideByside = true;
+    /*
     if ((float)img1->mWidth / img1->mHeight > 16.0f / 9.0f)
         sideByside = false;
+    */
 
     if (sideByside)
         glfwSetWindowSize(window, img1->mWidth * 2, img1->mHeight);

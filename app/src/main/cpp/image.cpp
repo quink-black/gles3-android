@@ -1,6 +1,7 @@
 #include "image.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #define TINYEXR_IMPLEMENTATION
 #include "tinyexr.h"
@@ -37,6 +38,10 @@ struct LdrImageDecoder : public ImageDecoder {
     int Decode(const char *file, const char *dataType) override;
 };
 
+struct PfmImageDecoder : public ImageDecoder {
+    int Decode(const char *file, const char *dataType) override;
+};
+
 std::shared_ptr<ImageDecoder> ImageDecoder::CreateByType(const char *fileType) {
     if (!strcasecmp(fileType, "OpenEXR"))
         return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
@@ -44,6 +49,8 @@ std::shared_ptr<ImageDecoder> ImageDecoder::CreateByType(const char *fileType) {
         return std::shared_ptr<ImageDecoder>(new HdrImageDecoder());
     else if (!strcasecmp(fileType, "ldr"))
         return std::shared_ptr<ImageDecoder>(new LdrImageDecoder());
+    else if (!strcasecmp(fileType, "pfm"))
+        return std::shared_ptr<ImageDecoder>(new PfmImageDecoder());
     else
         return nullptr;
 }
@@ -61,9 +68,13 @@ std::shared_ptr<ImageDecoder> ImageDecoder::CreateByName(const char *file) {
             fileType = "OpenEXR";
         else if (suffix == ".hdr")
             fileType = "hdr";
+        else if (suffix == ".pfm")
+            fileType = "pfm";
         else
             fileType = "ldr";
     }
+
+    ALOGD("create %s image decoder", fileType.c_str());
 
     return ImageDecoder::CreateByType(fileType.c_str());
 }
@@ -291,4 +302,79 @@ int LdrImageDecoder::Decode(const char *file, const char *dataType) {
     mGamma = 2.2f;
 
     return 0;
+}
+
+int PfmImageDecoder::Decode(const char *file, const char *dataType) {
+    Reset();
+
+    FILE *in = fopen(file, "r");
+    char buf[2];
+    int ret;
+    int n;
+    float *data = nullptr;
+    float f;
+
+    if(fscanf(in, "%2c ", buf) != 1) {
+        ret = -1;
+        goto out;
+    }
+    if (buf[0] != 'P' || buf[1] != 'F') {
+        ret = -1;
+        goto out;
+    }
+    if (fscanf(in, "%d %d ", &mWidth, &mHeight) != 2) {
+        ret = -1;
+        goto out;
+    }
+
+    if (fscanf(in, "%f ", &f) != 1) {
+        ret = -1;
+        goto out;
+    }
+
+    n = mWidth * mHeight * 3;
+    data = (float *)malloc(n * sizeof(float));
+    if ((int)fread(data, sizeof(float), n, in) != n) {
+        ALOGE("file incomplete?");
+        ret = -1;
+        goto out;
+    }
+
+    if (f > 0) {
+        // data is in big endian
+        union {
+            uint8_t buf[4];
+            float f;
+        } tmp;
+        for (int i = 0; i < n; i++) {
+            tmp.f = data[i];
+            std::swap(tmp.buf[0], tmp.buf[3]);
+            std::swap(tmp.buf[1], tmp.buf[2]);
+            data[i] = tmp.f;
+        }
+    }
+
+    mDataType = dataType;
+    mChannel = "RGB";
+    if (mDataType == "float") {
+        mDataF = data;
+        data = nullptr;
+    } else if (mDataType == "uint16_t") {
+        mDataU16 = (uint16_t *)malloc(n * sizeof(uint16_t));
+        for (int i = 0; i < mWidth * mHeight * 3; ++i) {
+            mDataU16[i] = std::min<int>(data[i] * 255, UINT16_MAX);
+        }
+    } else if (mDataType == "uint8_t") {
+        mDataU8 = (uint8_t *)malloc(n);
+        for (int i = 0; i < mWidth * mHeight * 3; ++i) {
+            mDataU8[i] = std::min<int>(data[i] * 255, UINT8_MAX);
+        }
+    }
+    ret = 0;
+    ALOGD("decoder %s success", file);
+
+out:
+    fclose(in);
+    free(data);
+    return ret;
 }
