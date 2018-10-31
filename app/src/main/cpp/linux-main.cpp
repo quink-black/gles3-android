@@ -17,6 +17,22 @@
 #define GL_DEBUG_OUTPUT 0x92E0
 #endif
 
+static std::array<ToneMap::ImageCoord, 2> GetCoord(bool sideByside = true) {
+    std::array<ToneMap::ImageCoord, 2> ret;
+    if (sideByside) {
+        ret[0] = {ToneMap::TopLeft(), ToneMap::BottomLeft(),
+                  ToneMap::BottomMiddle(), ToneMap::TopMiddle()};
+        ret[1] = {ToneMap::TopMiddle(), ToneMap::BottomMiddle(),
+                  ToneMap::BottomRight(), ToneMap::TopRight()};
+    } else {    // top bottom
+        ret[0] = {ToneMap::TopLeft(), ToneMap::MiddleLeft(),
+                  ToneMap::MiddleRight(), ToneMap::TopRight()};
+        ret[1] = {ToneMap::MiddleLeft(), ToneMap::BottomLeft(),
+                  ToneMap::BottomRight(), ToneMap::MiddleRight()};
+    }
+    return ret;
+}
+
 int main(int argc, char *argv[])
 {
     (void)argc;
@@ -81,26 +97,23 @@ int main(int argc, char *argv[])
         if (img->Decode(filename.c_str(), texDataType.c_str()))
             return 1;
     }
-    glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
+
+    bool sideByside = true;
+    if ((float)img->mWidth / img->mHeight > 16.0f / 9.0f)
+        sideByside = false;
+
+    if (sideByside)
+        glfwSetWindowSize(window, img->mWidth * 2, img->mHeight);
+    else
+        glfwSetWindowSize(window, img->mWidth, img->mHeight * 2);
 
     std::shared_ptr<ToneMap> hable(ToneMap::CreateToneMap("Hable"));
-    ToneMap::ImageCoord coordA = {
-        {-1.0f, 1.0f},
-        {-1.0f, -1.0f},
-        {0.0f, -1.0f},
-        {0.0f, 1.0f},
-    };
-    if (hable->Init(coordA))
+    const auto coords = GetCoord(sideByside);
+    if (hable->Init(coords[0]))
         return 1;
 
     std::shared_ptr<ToneMap> plain(ToneMap::CreateToneMap(""));
-    ToneMap::ImageCoord coordB = {
-        {0.0f, 1.0f},
-        {0.0f, -1.0f},
-        {1.0f, -1.0f},
-        {1.0f, 1.0f},
-    };
-    if (plain->Init(coordB))
+    if (plain->Init(coords[1]))
         return 1;
 
     PerfMonitor hableUpload(100, [](long long t) {
