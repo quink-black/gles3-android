@@ -16,6 +16,9 @@ android {
                 arguments '-DANDROID_STL=c++_static'
             }
         }
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
     }
     buildTypes {
         release {
@@ -27,6 +30,11 @@ android {
     externalNativeBuild {
         cmake {
             path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ["libs"]
         }
     }
 }
