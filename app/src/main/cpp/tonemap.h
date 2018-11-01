@@ -11,33 +11,6 @@ public:
         float mY;
     };
 
-    static Coordinate TopLeft() {
-        return {-1.0f, 1.0f};
-    }
-    static Coordinate TopMiddle() {
-        return {0.0f, 1.0f};
-    }
-    static Coordinate TopRight() {
-        return {1.0f, 1.0f};
-    }
-    static Coordinate MiddleLeft() {
-        return {-1.0f, 0.0f};
-    }
-    static Coordinate Middle() {
-        return {0.0f, 0.0f};
-    }
-    static Coordinate MiddleRight() {
-        return {1.0f, 0.0f};
-    }
-    static Coordinate BottomLeft() {
-        return {-1.0f, -1.0f};
-    }
-    static Coordinate BottomMiddle() {
-        return {0.0f, -1.0f};
-    }
-    static Coordinate BottomRight() {
-        return {1.0f, -1.0f};
-    }
     struct ImageCoord {
         Coordinate mTopLeft;
         Coordinate mBottomLeft;
