@@ -20,6 +20,11 @@
 #include <string.h>
 #include <time.h>
 
+#include <array>
+#include <fstream>
+#include <memory>
+#include <string>
+
 #include "perf-monitor.h"
 #include "log.h"
 #include "tonemap.h"
@@ -31,32 +36,67 @@ static PerfMonitor *g_Upload;
 static PerfMonitor *g_Draw;
 static PerfMonitor *g_Fps;
 
-static inline void printGlString(const char* name, GLenum s) {
-    const char* v = (const char*)glGetString(s);
-    ALOGD("GL %s: %s", name, v);
-}
-
 extern "C" {
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj);
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_resize(JNIEnv* env, jobject obj, jint width, jint height);
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj);
 };
 
-static std::shared_ptr<ImageDecoder> GetImage() {
-    static std::shared_ptr<ImageDecoder> img(nullptr);
-    if (img == nullptr) {
+static std::string getLibDirectory() {
+    std::string path;
+    std::ifstream maps("/proc/self/maps");
+
+    uintptr_t needle = (uintptr_t)Java_com_android_gles3jni_GLES3JNILib_init;
+
+    for (std::string line; std::getline(maps, line);) {
+        void *start, *end;
+        if (sscanf(line.c_str(), "%p-%p", &start, &end) < 2)
+            continue;
+        /* This mapping contains the address of this function. */
+        if (needle < (uintptr_t)start || (uintptr_t)end <= needle)
+            continue;
+
+        auto dirPos = line.find('/');
+        if (dirPos == std::string::npos)
+            continue;
+        auto filePos = line.rfind('/');
+        if (filePos != dirPos) {
+            path = line.substr(dirPos, filePos - dirPos);
+        } else {
+            path = "/";
+        }
+        break;
+    }
+
+    ALOGD("library path %s", path.c_str());
+    return path;
+}
+
+static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
+    static std::array<std::shared_ptr<ImageDecoder>, 2> imgs;
+    if (imgs[0] == nullptr) {
         bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
         std::string texDataType("float");
         if (!hasFloatExt)
             texDataType = "uint16_t";
         ALOGD("texture data type %s", texDataType.c_str());
 
-        img = ImageDecoder::CreateImageDecoder("OpenEXR");
-        if (img->Decode("/sdcard/test.exr", texDataType.c_str())) {
-            img = nullptr;
+        std::string path = getLibDirectory();
+        std::string hdrImg = path + "/libhdr.so";
+        std::string ldrImg = path + "/libldr.so";
+
+        imgs[0] = ImageDecoder::CreateByType("pfm");
+        if (imgs[0]->Decode(hdrImg.c_str(), texDataType.c_str())) {
+            imgs[0] = nullptr;
+        }
+
+        imgs[1] = ImageDecoder::CreateByType("ldr");
+        if (imgs[1]->Decode(ldrImg.c_str(), texDataType.c_str())) {
+            imgs[1] = nullptr;
         }
     }
-    return img;
+
+    return imgs;
 }
 
 JNIEXPORT void JNICALL
@@ -136,9 +176,10 @@ JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    const auto imgs = GetImage();
     if (g_Hable) {
         auto t1 = std::chrono::steady_clock::now();
-        g_Hable->UploadTexture(GetImage());
+        g_Hable->UploadTexture(imgs[0]);
         auto t2 = std::chrono::steady_clock::now();
         g_Hable->Draw();
         auto t3 = std::chrono::steady_clock::now();
@@ -147,7 +188,7 @@ Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
         g_Fps->Update(t3);
     }
     if (g_Plain) {
-        g_Plain->UploadTexture(GetImage());
+        g_Plain->UploadTexture(imgs[1]);
         g_Plain->Draw();
     }
 }
