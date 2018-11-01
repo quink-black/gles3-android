@@ -127,19 +127,17 @@ int Plain::Init(const ImageCoord &coord) {
 
     glGenTextures(1, &mTexture);
     glBindTexture(GL_TEXTURE_2D, mTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
     return 0;
 }
 
 int Plain::UploadTexture(std::shared_ptr<ImageDecoder> img) {
-    if (img->mDataType == "uint16_t") {
+    if (img->mDataType == "uint16_t")
         mProgramCurrent = mProgramIntSampler;
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    } else {
+    else
         mProgramCurrent = mProgramFloatSampler;
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    }
     CheckGLError();
 
     GLint internalformat;
