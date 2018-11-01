@@ -4,6 +4,7 @@
 #include <GLFW/glfw3native.h>
 
 #include <algorithm>
+#include <vector>
 
 #include "perf-monitor.h"
 #include "log.h"
@@ -17,20 +18,34 @@
 #define GL_DEBUG_OUTPUT 0x92E0
 #endif
 
-static std::array<ToneMap::ImageCoord, 2> GetCoord(bool sideByside = true) {
-    std::array<ToneMap::ImageCoord, 2> ret;
+static std::vector<ToneMap::ImageCoord> GetCoord(int n, bool sideByside = true) {
+    std::vector<ToneMap::ImageCoord> coords;
+    const float left = -1.0f;
+    const float right = 1.0f;
+    const float top = 1.0f;
+    const float bottom = -1.0f;
+    const float width = right - left;
+    const float height = top - bottom;
     if (sideByside) {
-        ret[0] = {ToneMap::TopLeft(), ToneMap::BottomLeft(),
-                  ToneMap::BottomMiddle(), ToneMap::TopMiddle()};
-        ret[1] = {ToneMap::TopMiddle(), ToneMap::BottomMiddle(),
-                  ToneMap::BottomRight(), ToneMap::TopRight()};
+        for (int i = 0; i < n; ++i) {
+            coords.push_back({
+                    {left + (float)i / n * width, top},
+                    {left + (float)i / n * width, bottom},
+                    {left + (float)(i + 1) / n * width, bottom},
+                    {left + (float)(i + 1) / n * width, top}
+                   });
+        }
     } else {    // top bottom
-        ret[0] = {ToneMap::TopLeft(), ToneMap::MiddleLeft(),
-                  ToneMap::MiddleRight(), ToneMap::TopRight()};
-        ret[1] = {ToneMap::MiddleLeft(), ToneMap::BottomLeft(),
-                  ToneMap::BottomRight(), ToneMap::MiddleRight()};
+        for (int i = 0; i < n; ++i) {
+            coords.push_back({
+                    {left, top + (float) i / n * height},
+                    {left, top + (float) (i + 1) / n * height},
+                    {right, top + (float) (i + 1) / n * height},
+                    {right, top + (float) i / n * height},
+                   });
+        }
     }
-    return ret;
+    return coords;
 }
 
 int main(int argc, char *argv[])
@@ -59,7 +74,9 @@ int main(int argc, char *argv[])
                     glfwSetWindowShouldClose(window, GLFW_TRUE);
             });
     glfwSetWindowSizeCallback(window,
-            [](GLFWwindow *, int w, int h) { glViewport(0, 0, w, h); });
+            [](GLFWwindow *, int w, int h) {
+                glViewport(0, 0, w, h);
+            });
     glfwMakeContextCurrent(window);
     glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -75,17 +92,23 @@ int main(int argc, char *argv[])
         texDataType = "uint16_t";
     ALOGD("texture data type %s", texDataType.c_str());
 
-    std::string filename1 = argc > 1 ? argv[1] : "Tree.exr";
-    std::string filename2 = argc > 2 ? argv[2] : filename1;
-
-    auto img1 = ImageDecoder::CreateByName(filename1.c_str());
-    if (img1->Decode(filename1.c_str(), texDataType.c_str())) {
-        return 1;
+    std::vector<std::string> files;
+    for (int i = 1; i < argc; i++) {
+        files.push_back(argv[i]);
     }
+    if (files.empty())
+        files.push_back("Tree.exr");
+    if (files.size() == 1)
+        files.push_back(files[0]);
 
-    auto img2 = ImageDecoder::CreateByName(filename2.c_str());
-    if (img2->Decode(filename2.c_str(), texDataType.c_str())) {
-        return 1;
+    std::vector<std::shared_ptr<ImageDecoder>> imgs;
+    for (size_t i = 0; i < files.size(); i++) {
+        auto img = ImageDecoder::CreateByName(files[i].c_str());
+        if (img->Decode(files[i].c_str(), texDataType.c_str())) {
+            ALOGE("cannot decode %s", files[i].c_str());
+            return 1;
+        }
+        imgs.push_back(img);
     }
 
     bool sideByside = true;
@@ -93,32 +116,30 @@ int main(int argc, char *argv[])
     if ((float)img1->mWidth / img1->mHeight > 16.0f / 9.0f)
         sideByside = false;
     */
-
     if (sideByside)
-        glfwSetWindowSize(window, img1->mWidth * 2, img1->mHeight);
+        glfwSetWindowSize(window, imgs[0]->mWidth * imgs.size(), imgs[0]->mHeight);
     else
-        glfwSetWindowSize(window, img1->mWidth, img1->mHeight * 2);
+        glfwSetWindowSize(window, imgs[0]->mWidth, imgs[0]->mHeight * imgs.size());
+    const auto coords = GetCoord(imgs.size(), sideByside);
 
-    std::shared_ptr<ToneMap> hable(ToneMap::CreateToneMap("Hable"));
-    const auto coords = GetCoord(sideByside);
-    if (hable->Init(coords[0]))
+    std::vector<std::shared_ptr<ToneMap>> tonemaps;
+    auto tonemap = std::shared_ptr<ToneMap>(ToneMap::CreateToneMap("Hable"));
+    if (tonemap->Init(coords[0]))
         return 1;
+    tonemaps.push_back(tonemap);
 
-    std::shared_ptr<ToneMap> plain(ToneMap::CreateToneMap(""));
-    if (plain->Init(coords[1]))
-        return 1;
+    for (size_t i = 1; i < imgs.size(); i++) {
+        tonemap = std::shared_ptr<ToneMap>(ToneMap::CreateToneMap(""));
+        if (tonemap->Init(coords[i]))
+            return 1;
+        tonemaps.push_back(tonemap);
+    }
 
-    PerfMonitor hableUpload(100, [](long long t) {
+    PerfMonitor uploadPerf(100, [](long long t) {
                 ALOGD("hable upload takes %lld us", t);
             });
-    PerfMonitor hableDraw(100, [](long long t) {
+    PerfMonitor drawPerf(100, [](long long t) {
                 ALOGD("hable draw takes %lld us", t);
-            });
-    PerfMonitor plainUpload(100, [](long long t) {
-                ALOGD("plain upload takes %lld us", t);
-            });
-    PerfMonitor plainDraw(100, [](long long t) {
-                ALOGD("plain draw takes %lld us", t);
             });
     PerfMonitor fps(100, [](long long t) {
                 ALOGD("fps %f", 1000000.0 / t);
@@ -129,20 +150,18 @@ int main(int argc, char *argv[])
 
         auto t1 = std::chrono::steady_clock::now();
 
-        hable->UploadTexture(img1);
+        tonemaps[0]->UploadTexture(imgs[0]);
         auto t2 = std::chrono::steady_clock::now();
-        hable->Draw();
+        tonemaps[0]->Draw();
         auto t3 = std::chrono::steady_clock::now();
 
-        plain->UploadTexture(img2);
-        auto t4 = std::chrono::steady_clock::now();
-        plain->Draw();
-        auto t5 = std::chrono::steady_clock::now();
+        for (size_t i = 1; i < imgs.size(); i++) {
+            tonemaps[i]->UploadTexture(imgs[i]);
+            tonemaps[i]->Draw();
+        }
 
-        hableUpload.Update(t2 -t1);
-        hableDraw.Update(t3 - t2);
-        plainUpload.Update(t4 - t3);
-        plainDraw.Update(t5 - t4);
+        uploadPerf.Update(t2 -t1);
+        drawPerf.Update(t3 - t2);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
