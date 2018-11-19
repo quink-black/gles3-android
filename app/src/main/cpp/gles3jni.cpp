@@ -75,7 +75,7 @@ static std::string getLibDirectory() {
 static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
     static std::array<std::shared_ptr<ImageDecoder>, 2> imgs;
     if (imgs[0] == nullptr) {
-        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
+        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
         std::string texDataType("float");
         if (!hasFloatExt)
             texDataType = "uint16_t";

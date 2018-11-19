@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     OpenGL_Helper::PrintGLExtension();
     OpenGL_Helper::SetupDebugCallback();
 
-    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
     std::string texDataType = "float";
     if (!hasFloatExt)
         texDataType = "uint16_t";
