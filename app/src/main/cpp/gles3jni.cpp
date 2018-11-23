@@ -75,10 +75,12 @@ static std::string getLibDirectory() {
 static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
     static std::array<std::shared_ptr<ImageDecoder>, 2> imgs;
     if (imgs[0] == nullptr) {
-        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
         std::string texDataType("float");
+#if 0
+        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
         if (!hasFloatExt)
             texDataType = "uint16_t";
+#endif
         ALOGD("texture data type %s", texDataType.c_str());
 
         std::string path = getLibDirectory();

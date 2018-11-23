@@ -86,10 +86,12 @@ int main(int argc, char *argv[])
     OpenGL_Helper::PrintGLExtension();
     OpenGL_Helper::SetupDebugCallback();
 
-    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
     std::string texDataType = "float";
+#if 0
+    bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
     if (!hasFloatExt)
         texDataType = "uint16_t";
+#endif
     ALOGD("texture data type %s", texDataType.c_str());
 
     std::vector<std::string> files;
