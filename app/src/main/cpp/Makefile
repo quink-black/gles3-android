@@ -14,12 +14,16 @@ HEADER := hable-frag-1.h hable-frag-2.h hable-vertex.h \
 	stb_image.h tinyexr.h \
 	tonemap.h image.h log.h opengl-helper.h perf-monitor.h \
 
-all: build main
+all: build build/.sum main
 
 build:
 	mkdir $@
 
-main: $(OBJ) $(HEADER)
+build/.sum: Makefile $(HEADER)
+	touch *.cpp
+	touch build/.sum
+
+main: $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS)
 
 %.o: ../%.cpp

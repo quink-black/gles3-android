@@ -32,9 +32,9 @@
 
 static ToneMap *g_Plain;
 static ToneMap *g_Hable;
-static PerfMonitor *g_Upload;
-static PerfMonitor *g_Draw;
-static PerfMonitor *g_Fps;
+static PerfMonitor *g_Upload[2];
+static PerfMonitor *g_Draw[2];
+static PerfMonitor *g_Fps[2];
 
 extern "C" {
     JNIEXPORT void JNICALL Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj);
@@ -75,10 +75,12 @@ static std::string getLibDirectory() {
 static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
     static std::array<std::shared_ptr<ImageDecoder>, 2> imgs;
     if (imgs[0] == nullptr) {
-        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_EXT_color_buffer_float");
         std::string texDataType("float");
+#if 0
+        bool hasFloatExt = OpenGL_Helper::CheckGLExtension("GL_OES_texture_float");
         if (!hasFloatExt)
             texDataType = "uint16_t";
+#endif
         ALOGD("texture data type %s", texDataType.c_str());
 
         std::string path = getLibDirectory();
@@ -97,6 +99,26 @@ static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
     }
 
     return imgs;
+}
+
+static void CreatePerf() {
+    for (int i = 0; i < 2; i++) {
+        if (g_Upload[i] == nullptr) {
+            g_Upload[i] = new PerfMonitor(100, [i](long long t) {
+                ALOGD("[%d] upload takes %lld us", i + 1, t);
+            });
+        }
+        if (g_Draw[i] == nullptr) {
+            g_Draw[i] = new PerfMonitor(100, [i](long long t) {
+                ALOGD("[%d] draw takes %lld us", i + 1, t);
+            });
+        }
+        if (g_Fps[i] == nullptr) {
+            g_Fps[i] = new PerfMonitor(100, [i](long long t) {
+                ALOGD("[%d] fps %f", i + 1, 1000000.0 / t);
+            });
+        }
+    }
 }
 
 JNIEXPORT void JNICALL
@@ -141,22 +163,7 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
     g_Plain = ToneMap::CreateToneMap("");
     if (g_Plain->Init(coordB))
         goto error;
-
-    if (g_Upload == nullptr) {
-        g_Upload = new PerfMonitor(100, [](long long t) {
-                ALOGD("upload takes %lld us", t);
-            });
-    }
-    if (g_Draw == nullptr) {
-        g_Draw = new PerfMonitor(100, [](long long t) {
-                ALOGD("draw takes %lld us", t);
-            });
-    }
-    if (g_Fps == nullptr) {
-        g_Fps = new PerfMonitor(100, [](long long t) {
-                ALOGD("fps %f", 1000000.0 / t);
-            });
-    }
+    CreatePerf();
 
     return;
 
@@ -177,18 +184,24 @@ Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     const auto imgs = GetImage();
-    if (g_Hable) {
+    if (1 && g_Hable) {
         auto t1 = std::chrono::steady_clock::now();
         g_Hable->UploadTexture(imgs[0]);
         auto t2 = std::chrono::steady_clock::now();
         g_Hable->Draw();
         auto t3 = std::chrono::steady_clock::now();
-        g_Upload->Update(t2 - t1);
-        g_Draw->Update(t3 - t2);
-        g_Fps->Update(t3);
+        g_Upload[0]->Update(t2 - t1);
+        g_Draw[0]->Update(t3 - t2);
+        g_Fps[0]->Update(t3);
     }
-    if (g_Plain) {
+    if (1 && g_Plain) {
+        auto t1 = std::chrono::steady_clock::now();
         g_Plain->UploadTexture(imgs[1]);
+        auto t2 = std::chrono::steady_clock::now();
         g_Plain->Draw();
+        auto t3 = std::chrono::steady_clock::now();
+        g_Upload[1]->Update(t2 - t1);
+        g_Draw[1]->Update(t3 - t2);
+        g_Fps[1]->Update(t3);
     }
 }
