@@ -5,14 +5,36 @@
 #include <memory>
 #include <string>
 
+enum class ImageType {
+    common_ldr,
+    openexr,
+    hdr,
+    pfm,
+};
+
+static inline std::string ImageTypeGetName(ImageType type) {
+    switch (type) {
+        case ImageType::common_ldr:
+            return "common ldr";
+        case ImageType::openexr:
+            return "OpenEXR";
+        case ImageType::hdr:
+            return "HDR/RGBE";
+        case ImageType::pfm:
+            return "PFM";
+        default:
+            return "unknown";
+    }
+}
+
 struct ImageDecoder {
-    static std::shared_ptr<ImageDecoder> CreateByType(const char *fileType);
-    static std::shared_ptr<ImageDecoder> CreateByName(const char *file);
+    static std::shared_ptr<ImageDecoder> Create(ImageType type);
+    static std::shared_ptr<ImageDecoder> Create(const std::string &file);
 
     ImageDecoder();
     virtual ~ImageDecoder();
 
-    virtual int Decode(const char *file, const char *dataType) = 0;
+    virtual int Decode(const std::string &file, const char *dataType) = 0;
 
     int mWidth;
     int mHeight;
