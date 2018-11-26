@@ -23,23 +23,22 @@ void ImageDecoder::Reset() {
     free(mData); mData = nullptr;
     mGamma = 1.0f;
     mDataType = "";
-    mChannel = "";
 }
 
 struct OpenEXRImageDecoder : public ImageDecoder {
-    int Decode(const std::string &file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct HdrImageDecoder : public ImageDecoder {
-    int Decode(const std::string &file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct LdrImageDecoder : public ImageDecoder {
-    int Decode(const std::string &file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct PfmImageDecoder : public ImageDecoder {
-    int Decode(const std::string &file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 std::shared_ptr<ImageDecoder> ImageDecoder::Create(ImageType type) {
@@ -118,7 +117,7 @@ static void convert(void *p, int offset, int type, float *dst) {
     }
 }
 
-int OpenEXRImageDecoder::Decode(const std::string &file, const char *dataType) {
+int OpenEXRImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     Reset();
 
     mDataType = dataType;
@@ -126,7 +125,7 @@ int OpenEXRImageDecoder::Decode(const std::string &file, const char *dataType) {
             mDataType != "uint16_t" &&
             mDataType != "uint8_t") {
         mDataType = "";
-        ALOGD("unsupported data type %s", dataType);
+        ALOGD("unsupported data type %s", mDataType.c_str());
         return -1;
     }
 
@@ -187,16 +186,9 @@ int OpenEXRImageDecoder::Decode(const std::string &file, const char *dataType) {
             goto out;
         }
     }
-    mChannel = "";
-    if (idxR != -1)
-        mChannel += "R";
-    if (idxG != -1)
-        mChannel += "G";
-    if (idxB != -1)
-        mChannel += "B";
 
-    if (mChannel != "RGB") {
-        ALOGE("channel is incomplete: %s", mChannel.c_str());
+    if (idxR == -1 || idxG == -1 || idxB == -1) {
+        ALOGE("channel is incomplete");
         ret = -1;
         goto out;
     }
@@ -242,7 +234,7 @@ out:
     return ret;
 }
 
-int HdrImageDecoder::Decode(const std::string &file, const char *dataType) {
+int HdrImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     int comp = 0;
 
     Reset();
@@ -263,7 +255,6 @@ int HdrImageDecoder::Decode(const std::string &file, const char *dataType) {
     }
 
     mDataType = dataType;
-    mChannel = "RGB";
     if (mDataType == "float") {
         mDataF = data;
         data = nullptr;
@@ -283,7 +274,7 @@ int HdrImageDecoder::Decode(const std::string &file, const char *dataType) {
     return 0;
 }
 
-int LdrImageDecoder::Decode(const std::string &file, const char *dataType) {
+int LdrImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     int comp = 0;
 
     Reset();
@@ -298,13 +289,12 @@ int LdrImageDecoder::Decode(const std::string &file, const char *dataType) {
 
     (void)dataType;
     mDataType = "uint8_t";
-    mChannel = "RGB";
     mGamma = 2.2f;
 
     return 0;
 }
 
-int PfmImageDecoder::Decode(const std::string &file, const char *dataType) {
+int PfmImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     Reset();
 
     FILE *in = fopen(file.c_str(), "r");
@@ -355,7 +345,6 @@ int PfmImageDecoder::Decode(const std::string &file, const char *dataType) {
     }
 
     mDataType = dataType;
-    mChannel = "RGB";
     if (mDataType == "float") {
         mDataF = data;
         data = nullptr;

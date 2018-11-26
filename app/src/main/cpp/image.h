@@ -34,7 +34,7 @@ struct ImageDecoder {
     ImageDecoder();
     virtual ~ImageDecoder();
 
-    virtual int Decode(const std::string &file, const char *dataType) = 0;
+    virtual int Decode(const std::string &file, const std::string &dataType) = 0;
 
     int mWidth;
     int mHeight;
@@ -45,7 +45,6 @@ struct ImageDecoder {
         uint8_t *mDataU8;
     };
     float mGamma;
-    std::string mChannel;
     std::string mDataType;
 
 protected:

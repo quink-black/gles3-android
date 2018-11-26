@@ -88,12 +88,12 @@ static std::array<std::shared_ptr<ImageDecoder>, 2> GetImage() {
         std::string ldrImg = path + "/libldr.so";
 
         imgs[0] = ImageDecoder::Create(ImageType::pfm);
-        if (imgs[0]->Decode(hdrImg, texDataType.c_str())) {
+        if (imgs[0]->Decode(hdrImg, texDataType)) {
             imgs[0] = nullptr;
         }
 
         imgs[1] = ImageDecoder::Create(ImageType::common_ldr);
-        if (imgs[1]->Decode(ldrImg, texDataType.c_str())) {
+        if (imgs[1]->Decode(ldrImg, texDataType)) {
             imgs[1] = nullptr;
         }
     }
