@@ -123,8 +123,8 @@ int main(int argc, char *argv[])
 
     std::vector<std::shared_ptr<ImageDecoder>> imgs;
     for (size_t i = 0; i < files.size(); i++) {
-        auto img = ImageDecoder::CreateByName(files[i].c_str());
-        if (img->Decode(files[i].c_str(), texDataType.c_str())) {
+        auto img = ImageDecoder::Create(files[i].c_str());
+        if (img->Decode(files[i], texDataType)) {
             ALOGE("cannot decode %s", files[i].c_str());
             return 1;
         }

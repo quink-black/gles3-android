@@ -23,41 +23,42 @@ void ImageDecoder::Reset() {
     free(mData); mData = nullptr;
     mGamma = 1.0f;
     mDataType = "";
-    mChannel = "";
 }
 
 struct OpenEXRImageDecoder : public ImageDecoder {
-    int Decode(const char *file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct HdrImageDecoder : public ImageDecoder {
-    int Decode(const char *file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct LdrImageDecoder : public ImageDecoder {
-    int Decode(const char *file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
 struct PfmImageDecoder : public ImageDecoder {
-    int Decode(const char *file, const char *dataType) override;
+    int Decode(const std::string &file, const std::string &dataType) override;
 };
 
-std::shared_ptr<ImageDecoder> ImageDecoder::CreateByType(const char *fileType) {
-    if (!strcasecmp(fileType, "OpenEXR"))
-        return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
-    else if (!strcasecmp(fileType, "hdr"))
-        return std::shared_ptr<ImageDecoder>(new HdrImageDecoder());
-    else if (!strcasecmp(fileType, "ldr"))
-        return std::shared_ptr<ImageDecoder>(new LdrImageDecoder());
-    else if (!strcasecmp(fileType, "pfm"))
-        return std::shared_ptr<ImageDecoder>(new PfmImageDecoder());
-    else
-        return nullptr;
+std::shared_ptr<ImageDecoder> ImageDecoder::Create(ImageType type) {
+    switch (type) {
+        case ImageType::common_ldr:
+            return std::shared_ptr<ImageDecoder>(new LdrImageDecoder());
+        case ImageType::openexr:
+            return std::shared_ptr<ImageDecoder>(new OpenEXRImageDecoder());
+        case ImageType::hdr:
+            return std::shared_ptr<ImageDecoder>(new HdrImageDecoder());
+        case ImageType::pfm:
+            return std::shared_ptr<ImageDecoder>(new PfmImageDecoder());
+        default:
+            return nullptr;
+    }
 }
 
-std::shared_ptr<ImageDecoder> ImageDecoder::CreateByName(const char *file) {
+std::shared_ptr<ImageDecoder> ImageDecoder::Create(const std::string &file) {
     std::string filename = file;
-    std::string fileType = "ldr";
+    ImageType fileType = ImageType::common_ldr;
 
     auto suffix_pos = filename.rfind(".");
     if (suffix_pos != std::string::npos) {
@@ -65,18 +66,16 @@ std::shared_ptr<ImageDecoder> ImageDecoder::CreateByName(const char *file) {
         ALOGD("suffix %s", suffix.c_str());
         std::transform(suffix.begin(), suffix.end(), suffix.begin(), tolower);
         if (suffix == ".exr")
-            fileType = "OpenEXR";
+            fileType = ImageType::openexr;
         else if (suffix == ".hdr")
-            fileType = "hdr";
+            fileType = ImageType::hdr;
         else if (suffix == ".pfm")
-            fileType = "pfm";
-        else
-            fileType = "ldr";
+            fileType = ImageType::pfm;
     }
 
-    ALOGD("create %s image decoder", fileType.c_str());
+    ALOGD("create %s image decoder", ImageTypeGetName(fileType).c_str());
 
-    return ImageDecoder::CreateByType(fileType.c_str());
+    return ImageDecoder::Create(fileType);
 }
 
 template<typename T, typename = typename std::enable_if<std::is_integral<T>::value>>
@@ -118,7 +117,7 @@ static void convert(void *p, int offset, int type, float *dst) {
     }
 }
 
-int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
+int OpenEXRImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     Reset();
 
     mDataType = dataType;
@@ -126,7 +125,7 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
             mDataType != "uint16_t" &&
             mDataType != "uint8_t") {
         mDataType = "";
-        ALOGD("unsupported data type %s", dataType);
+        ALOGD("unsupported data type %s", mDataType.c_str());
         return -1;
     }
 
@@ -141,8 +140,8 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
 
     InitEXRImage(&img);
     InitEXRHeader(&header);
-    ParseEXRVersionFromFile(&version, file);
-    if (ParseEXRHeaderFromFile(&header, &version, file, &errMsg)) {
+    ParseEXRVersionFromFile(&version, file.c_str());
+    if (ParseEXRHeaderFromFile(&header, &version, file.c_str(), &errMsg)) {
         ALOGE("could not parser exr header: %s", errMsg);
         FreeEXRHeader(&header);
         FreeEXRImage(&img);
@@ -153,7 +152,7 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
         if (header.requested_pixel_types[i] == TINYEXR_PIXELTYPE_HALF)
             header.requested_pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT;
     }
-    if (LoadEXRImageFromFile(&img, &header, file, &errMsg)) {
+    if (LoadEXRImageFromFile(&img, &header, file.c_str(), &errMsg)) {
         ALOGE("could not open exr file: %s", errMsg);
         ret = -1;
         goto out;
@@ -187,16 +186,9 @@ int OpenEXRImageDecoder::Decode(const char *file, const char *dataType) {
             goto out;
         }
     }
-    mChannel = "";
-    if (idxR != -1)
-        mChannel += "R";
-    if (idxG != -1)
-        mChannel += "G";
-    if (idxB != -1)
-        mChannel += "B";
 
-    if (mChannel != "RGB") {
-        ALOGE("channel is incomplete: %s", mChannel.c_str());
+    if (idxR == -1 || idxG == -1 || idxB == -1) {
+        ALOGE("channel is incomplete");
         ret = -1;
         goto out;
     }
@@ -242,17 +234,17 @@ out:
     return ret;
 }
 
-int HdrImageDecoder::Decode(const char *file, const char *dataType) {
+int HdrImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     int comp = 0;
 
     Reset();
 
-    if (!stbi_is_hdr(file)) {
-        ALOGD("%s is not HDR?", file);
+    if (!stbi_is_hdr(file.c_str())) {
+        ALOGD("%s is not HDR?", file.c_str());
         return -1;
     }
 
-    float *data = stbi_loadf(file, &mWidth, &mHeight, &comp, 0);
+    float *data = stbi_loadf(file.c_str(), &mWidth, &mHeight, &comp, 0);
     ALOGD("width %d, height %d, comp %d", mWidth, mHeight, comp);
     if (data == nullptr)
         return -1;
@@ -263,7 +255,6 @@ int HdrImageDecoder::Decode(const char *file, const char *dataType) {
     }
 
     mDataType = dataType;
-    mChannel = "RGB";
     if (mDataType == "float") {
         mDataF = data;
         data = nullptr;
@@ -283,12 +274,12 @@ int HdrImageDecoder::Decode(const char *file, const char *dataType) {
     return 0;
 }
 
-int LdrImageDecoder::Decode(const char *file, const char *dataType) {
+int LdrImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     int comp = 0;
 
     Reset();
 
-    mDataU8 = stbi_load(file, &mWidth, &mHeight, &comp, 3);
+    mDataU8 = stbi_load(file.c_str(), &mWidth, &mHeight, &comp, 3);
     ALOGD("width %d, height %d, comp %d", mWidth, mHeight, comp);
     if (mDataU8 == nullptr)
         return -1;
@@ -298,16 +289,15 @@ int LdrImageDecoder::Decode(const char *file, const char *dataType) {
 
     (void)dataType;
     mDataType = "uint8_t";
-    mChannel = "RGB";
     mGamma = 2.2f;
 
     return 0;
 }
 
-int PfmImageDecoder::Decode(const char *file, const char *dataType) {
+int PfmImageDecoder::Decode(const std::string &file, const std::string &dataType) {
     Reset();
 
-    FILE *in = fopen(file, "r");
+    FILE *in = fopen(file.c_str(), "r");
     char buf[2];
     int ret;
     int n;
@@ -355,7 +345,6 @@ int PfmImageDecoder::Decode(const char *file, const char *dataType) {
     }
 
     mDataType = dataType;
-    mChannel = "RGB";
     if (mDataType == "float") {
         mDataF = data;
         data = nullptr;
@@ -371,7 +360,7 @@ int PfmImageDecoder::Decode(const char *file, const char *dataType) {
         }
     }
     ret = 0;
-    ALOGD("decoder %s success", file);
+    ALOGD("decoder %s success", file.c_str());
 
 out:
     fclose(in);
