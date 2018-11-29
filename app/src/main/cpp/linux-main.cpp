@@ -1,5 +1,11 @@
-#define GLFW_INCLUDE_ES3    1
-#define GLFW_EXPOSE_NATIVE_EGL  1
+#include "config.h"
+
+#if HAVE_GLES
+#   define GLFW_INCLUDE_ES3    1
+#endif
+#if HAVE_EGL
+#   define GLFW_EXPOSE_NATIVE_EGL  1
+#endif
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
@@ -58,10 +64,22 @@ int main(int argc, char *argv[])
     if (!glfwInit())
         return 1;
 
+#if HAVE_EGL
     glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+#endif
+#if HAVE_GLES
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#elif HAVE_GL
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
     GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, argv[0], nullptr, nullptr);
     if (!window)
         return 1;
@@ -114,14 +132,12 @@ int main(int argc, char *argv[])
     }
 
     bool sideByside = true;
-    /*
-    if ((float)img1->mWidth / img1->mHeight > 16.0f / 9.0f)
-        sideByside = false;
-    */
+#ifndef __APPLE__
     if (sideByside)
         glfwSetWindowSize(window, imgs[0]->mWidth * imgs.size(), imgs[0]->mHeight);
     else
         glfwSetWindowSize(window, imgs[0]->mWidth, imgs[0]->mHeight * imgs.size());
+#endif
     const auto coords = GetCoord(imgs.size(), sideByside);
 
     std::vector<std::shared_ptr<ToneMap>> tonemaps;

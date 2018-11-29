@@ -1,18 +1,26 @@
 #include "tonemap.h"
+#include "config.h"
+#if HAVE_GLES
+#   include <GLES3/gl3.h>
+#else
+#   define GLFW_INCLUDE_GLCOREARB
+#   define GL_GLEXT_PROTOTYPES
+#   define GLFW_INCLUDE_GLEXT
+#   include <GLFW/glfw3.h>
+#endif
 
 #include <assert.h>
-#include <GLES3/gl3.h>
 #include <memory>
 
 #include "image.h"
 #include "log.h"
 #include "opengl-helper.h"
-#include "hable-vertex.h"
-#include "hable-frag-1.h"
-#include "hable-frag-2.h"
-#include "plain-vertex.h"
-#include "plain-frag-1.h"
-#include "plain-frag-2.h"
+
+#if HAVE_GLES
+#define HEADER_VERSION  "#version 300 es\n"
+#else
+#define HEADER_VERSION  "#version 330 core\n"
+#endif
 
 class Plain : public ToneMap {
 public:
@@ -66,15 +74,79 @@ int Plain::Init(){
 }
 
 std::string Plain::GetVertexSrc() {
-    return PLAIN_VERTEX;
+    std::string vertexSrc(HEADER_VERSION);
+    vertexSrc +=
+R"(layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 uv;
+out vec2 o_uv;
+void main()
+{
+    gl_Position = vec4(position, 0.0, 1.0);
+    o_uv = uv;
+}
+)";
+    return vertexSrc;
 }
 
 std::string Plain::GetFragWithFloatSamplerSrc() {
-    return PLAIN_FRAG_WITH_FLOAT_SAMPLER;
+    std::string src(HEADER_VERSION);
+    src +=
+R"(precision mediump float;
+uniform sampler2D source;
+uniform float gamma;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
+}
+
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+void main()
+{
+    vec4 color = texture(source, o_uv);
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+})";
+    return src;
 }
 
 std::string Plain::GetFragWithIntSampleSrc() {
-    return PLAIN_FRAG_WITH_INT_SAMPLER;
+    std::string src(HEADER_VERSION);
+    src +=
+R"(precision mediump float;
+precision mediump usampler2D;
+uniform usampler2D source;
+uniform float gamma;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
+}
+
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+void main()
+{
+    uvec4 cc = texture(source, o_uv);
+    float ratio = 255.0;
+    vec4 color = vec4(float(cc.r)/ratio, float(cc.g)/ratio, float(cc.b)/ratio, 1.0);
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+})";
+    return src;
 }
 
 int Plain::Init(const ImageCoord &coord) {
@@ -190,7 +262,6 @@ public:
     virtual ~Hable();
     int Init(const ImageCoord &coord) override;
 
-    std::string GetVertexSrc() override;
     std::string GetFragWithFloatSamplerSrc() override;
     std::string GetFragWithIntSampleSrc() override;
 
@@ -211,16 +282,97 @@ Hable::Hable() { }
 
 Hable::~Hable() { }
 
-std::string Hable::GetVertexSrc() {
-    return HABLE_VERTEX;
+std::string Hable::GetFragWithFloatSamplerSrc() {
+    std::string src(HEADER_VERSION);
+    src +=
+R"(precision mediump float;
+uniform sampler2D source;
+uniform float gamma;
+uniform float A;
+uniform float B;
+uniform float C;
+uniform float D;
+uniform float E;
+uniform float F;
+uniform float W;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
 }
 
-std::string Hable::GetFragWithFloatSamplerSrc() {
-    return HABLE_FRAG_WITH_FLOAT_SAMPLER;
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+vec4 tonemap(vec4 x)
+{
+    return ((x * (A*x + C*B) + D*E) / (x * (A*x+B) + D*F)) - E/F;
+}
+
+void main()
+{
+    vec4 color = texture(source, o_uv);
+    float exposureBias = 2.0;
+    vec4 curr = tonemap(exposureBias * color);
+    vec4 whiteScale = 1.0 / tonemap(vec4(W));
+    color = curr * whiteScale;
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+})";
+    return src;
 }
 
 std::string Hable::GetFragWithIntSampleSrc() {
-    return HABLE_FRAG_WITH_INT_SAMPLER;
+    std::string src(HEADER_VERSION);
+    src +=
+R"(precision mediump float;
+precision mediump usampler2D;
+uniform usampler2D source;
+uniform float gamma;
+uniform float A;
+uniform float B;
+uniform float C;
+uniform float D;
+uniform float E;
+uniform float F;
+uniform float W;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
+}
+
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+vec4 tonemap(vec4 x)
+{
+    return ((x * (A*x + C*B) + D*E) / (x * (A*x+B) + D*F)) - E/F;
+}
+
+void main()
+{
+    uvec4 cc = texture(source, o_uv);
+    float ratio = 255.0;
+    vec4 color = vec4(float(cc.r)/ratio, float(cc.g)/ratio, float(cc.b)/ratio, 1.0);
+    float exposureBias = 2.0;
+    vec4 curr = tonemap(exposureBias * color);
+    vec4 whiteScale = 1.0 / tonemap(vec4(W));
+    color = curr * whiteScale;
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+})";
+    return src;
 }
 
 int Hable::Init(const ImageCoord &coord) {

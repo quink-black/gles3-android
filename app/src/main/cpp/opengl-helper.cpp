@@ -1,7 +1,19 @@
 #include "opengl-helper.h"
 
+#include "config.h"
+#if HAVE_EGL
 #include <EGL/egl.h>
-#include <GLES3/gl3.h>
+#endif
+
+#if HAVE_GLES
+#   include <GLES3/gl3.h>
+#else
+#   define GLFW_INCLUDE_GLCOREARB
+#   define GL_GLEXT_PROTOTYPES
+#   define GLFW_INCLUDE_GLEXT
+#   include <GLFW/glfw3.h>
+#endif
+
 #include <string.h>
 
 #include <vector>
@@ -68,14 +80,17 @@ void OpenGL_Helper::PrintGLString(const char* name, int s) {
 
 void OpenGL_Helper::PrintGLExtension(void) {
     ALOGD("========= OpenGL extensions begin ========");
-    char *exts = strdup((const char *)glGetString(GL_EXTENSIONS));
-    char *saveptr;
-    char *token = strtok_r(exts, " ", &saveptr);
-    while (token) {
-        ALOGD("%s", token);
-        token = strtok_r(nullptr, " ", &saveptr);
+    const GLubyte *str = glGetString(GL_EXTENSIONS);
+    if (str) {
+        char *exts = strdup((const char *)str);
+        char *saveptr;
+        char *token = strtok_r(exts, " ", &saveptr);
+        while (token) {
+            ALOGD("%s", token);
+            token = strtok_r(nullptr, " ", &saveptr);
+        }
+        free(exts);
     }
-    free(exts);
     ALOGD("========= OpenGL extensions end ========");
 }
 
@@ -154,12 +169,14 @@ static void openGLMessageCallback(GLenum source, GLenum type, GLuint id,
 
 bool OpenGL_Helper::SetupDebugCallback(void) {
     bool ret = false;
+#if HAVE_EGL
     auto debugCallback  = (void (*)(void *, void *))eglGetProcAddress("glDebugMessageCallback");
     if (debugCallback) {
         glEnable(GL_DEBUG_OUTPUT);
         debugCallback((void*)openGLMessageCallback, nullptr);
         ret = true;
     }
+#endif
     ALOGD("setup opengl message callback %s", ret ? "success" : "failed");
     return ret;
 }
