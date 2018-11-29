@@ -2,7 +2,7 @@ project('hdr-tonemap', 'c', 'cpp',
 	default_options : ['c_std=c11', 'cpp_std=c++11'])
 
 src = files('image.cpp',
-	'linux-main.cpp',
+	'main.cpp',
 	'opengl-helper.cpp',
 	'perf-monitor.cpp',
 	'tonemap.cpp')
