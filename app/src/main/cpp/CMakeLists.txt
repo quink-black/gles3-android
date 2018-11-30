@@ -20,7 +20,8 @@ cmake_minimum_required(VERSION 3.4.1)
 #   [24, infinite)   ES2 & ES3 & Vulkan
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions -Wall")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti -fno-exceptions -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 set(OPENGL_LIB GLESv3)
 
 add_library(gles3jni SHARED
@@ -29,6 +30,9 @@ add_library(gles3jni SHARED
 	    image.cpp
 	    opengl-helper.cpp
 	    tonemap.cpp)
+
+target_include_directories(gles3jni PRIVATE
+	android)
 
 # Include libraries needed for gles3jni lib
 target_link_libraries(gles3jni
