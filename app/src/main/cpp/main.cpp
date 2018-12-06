@@ -10,12 +10,15 @@
 #include <GLFW/glfw3native.h>
 
 #include <algorithm>
-#include <vector>
+#include <array>
 
-#include "perf-monitor.h"
+#include "image_decoder.h"
+#include "image_merge.h"
+#include "tonemapper.h"
 #include "log.h"
+#include "perf-monitor.h"
 #include "opengl-helper.h"
-#include "tonemap.h"
+#include "render.h"
 
 #define WINDOW_WIDTH    1280
 #define WINDOW_HEIGHT   720
@@ -24,8 +27,10 @@
 #define GL_DEBUG_OUTPUT 0x92E0
 #endif
 
-static std::vector<ToneMap::ImageCoord> GetCoord(int n, bool sideByside = true) {
-    std::vector<ToneMap::ImageCoord> coords;
+using namespace quink;
+
+static std::vector<Render::ImageCoord> GetCoord(int n, bool sideByside = true) {
+    std::vector<Render::ImageCoord> coords;
     const float left = -1.0f;
     const float right = 1.0f;
     const float top = 1.0f;
@@ -112,23 +117,27 @@ int main(int argc, char *argv[])
 #endif
     ALOGD("texture data type %s", texDataType.c_str());
 
-    std::vector<std::string> files;
-    for (int i = 1; i < argc; i++) {
-        files.push_back(argv[i]);
-    }
-    if (files.empty())
-        files.push_back("Tree.exr");
-    if (files.size() == 1)
-        files.push_back(files[0]);
+    if (argc != 3)
+        return 1;
 
-    std::vector<std::shared_ptr<ImageDecoder>> imgs;
-    for (size_t i = 0; i < files.size(); i++) {
-        auto img = ImageDecoder::Create(files[i].c_str());
-        if (img->Decode(files[i], texDataType)) {
+    std::string files[2] = {argv[1], argv[2]};
+    std::array<std::shared_ptr<Image<uint8_t>>, 2> imgs;
+    for (size_t i = 0; i < imgs.size(); i++) {
+        auto imgWrapper = ImageLoader::LoadImage(files[i]);
+        if (imgWrapper.Empty()) {
             ALOGE("cannot decode %s", files[i].c_str());
             return 1;
         }
-        imgs.push_back(img);
+        imgs[i] = imgWrapper.GetImg<uint8_t>();
+    }
+
+    auto imgNew = ImageMerge::Merge<float>(imgs[0], imgs[1]);
+    {
+        HableMapper toneMapper;
+        toneMapper.Map(imgNew);
+        ImageWrapper wrap(imgNew);
+        imgs[1] = wrap.GetImg<uint8_t>();
+        imgNew = nullptr;
     }
 
     bool sideByside = true;
@@ -140,17 +149,12 @@ int main(int argc, char *argv[])
 #endif
     const auto coords = GetCoord(imgs.size(), sideByside);
 
-    std::vector<std::shared_ptr<ToneMap>> tonemaps;
-    auto tonemap = std::shared_ptr<ToneMap>(ToneMap::CreateToneMap("Hable"));
-    if (tonemap->Init(coords[0]))
-        return 1;
-    tonemaps.push_back(tonemap);
-
-    for (size_t i = 1; i < imgs.size(); i++) {
-        tonemap = std::shared_ptr<ToneMap>(ToneMap::CreateToneMap(""));
-        if (tonemap->Init(coords[i]))
+    std::array<std::shared_ptr<Render>, 2> renders;
+    for (size_t i = 0; i < imgs.size(); i++) {
+        auto r = std::shared_ptr<Render>(Render::Create());
+        if (r->Init(coords[i]))
             return 1;
-        tonemaps.push_back(tonemap);
+        renders[i] = r;
     }
 
     PerfMonitor uploadPerf(100, [](long long t) {
@@ -168,14 +172,14 @@ int main(int argc, char *argv[])
 
         auto t1 = std::chrono::steady_clock::now();
 
-        tonemaps[0]->UploadTexture(imgs[0]);
+        renders[0]->UploadTexture(imgs[0]);
         auto t2 = std::chrono::steady_clock::now();
-        tonemaps[0]->Draw();
+        renders[0]->Draw();
         auto t3 = std::chrono::steady_clock::now();
 
         for (size_t i = 1; i < imgs.size(); i++) {
-            tonemaps[i]->UploadTexture(imgs[i]);
-            tonemaps[i]->Draw();
+            renders[i]->UploadTexture(imgs[i]);
+            renders[i]->Draw();
         }
 
         uploadPerf.Update(t2 -t1);

@@ -1,0 +1,3 @@
+[submodule "app/src/main/cpp/subprojects/hdr2sdr"]
+	path = app/src/main/cpp/subprojects/hdr2sdr
+	url = https://github.com/quink-black/hdr2sdr.git

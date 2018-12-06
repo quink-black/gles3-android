@@ -1,9 +1,10 @@
-#ifndef TONEMAP_PERF_MONITOR_H
-#define TONEMAP_PERF_MONITOR_H
+#pragma once
 
 #include <chrono>
 #include <functional>
 #include <vector>
+
+namespace quink {
 
 class PerfMonitor {
 public:
@@ -19,4 +20,4 @@ private:
     std::size_t mIndex;
 };
 
-#endif
+}

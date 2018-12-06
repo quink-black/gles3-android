@@ -1,10 +1,11 @@
-#ifndef ToneMap_H
-#define ToneMap_H
+#pragma once
 
 #include <memory>
 #include "image.h"
 
-class ToneMap {
+namespace quink {
+
+class Render {
 public:
     struct Coordinate {
         float mX;
@@ -18,15 +19,14 @@ public:
         Coordinate mTopRight;
     };
 
-    /* algorithm = "Hable", "" */
-    static ToneMap *CreateToneMap(const std::string &algorithm);
+    static Render *Create();
 
-    virtual ~ToneMap() = default;
+    virtual ~Render() = default;
 
     virtual int Init() = 0;
     virtual int Init(const ImageCoord &coord) = 0;
-    virtual int UploadTexture(std::shared_ptr<ImageDecoder> img) = 0;
+    virtual int UploadTexture(std::shared_ptr<Image<uint8_t>> img) = 0;
     virtual int Draw() = 0;
 };
 
-#endif
+}
