@@ -30,6 +30,7 @@
 #include "tonemapper.h"
 #include "log.h"
 #include "opengl-helper.h"
+#include "perf-monitor.h"
 #include "render.h"
 
 using namespace quink;
@@ -72,29 +73,50 @@ static std::string getLibDirectory() {
     return path;
 }
 
-static std::array<std::shared_ptr<Image<uint8_t>>, 2> GetImage() {
-    static std::array<std::shared_ptr<Image<uint8_t>>, 2> imgs;
+using ImageGroup = std::pair<std::shared_ptr<Image<uint8_t>>, std::shared_ptr<Image<float>>>;
+static ImageGroup GetImage() {
+    static ImageGroup imageGroup;
 
-    if (imgs[0] == nullptr || imgs[1] == nullptr) {
+    if (imageGroup.first == nullptr || imageGroup.second == nullptr) {
+        std::shared_ptr<Image<uint8_t>> imgs[2];
+
         std::string path = getLibDirectory();
-        std::string files[2] = {path + "/liblow.so", path + "/libhigh.so"};
-        for (int i = 0; i < imgs.size(); i++) {
-            auto imgWrapper = ImageLoader::LoadImage(files[i]);
-            if (imgWrapper.Empty()) {
-                ALOGE("cannot decode %s", files[i].c_str());
-                return imgs;
-            }
-            imgs[i] = imgWrapper.GetImg<uint8_t>();
-        }
 
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::string file = path + "/liblow.so";
+        auto imgWrapper = ImageLoader::LoadImage(file);
+        if (imgWrapper.Empty()) {
+            ALOGE("cannot decode %s", file.c_str());
+            return ImageGroup();
+        }
+        imgs[0] = imgWrapper.GetImg<uint8_t>();
+        auto t2 = std::chrono::high_resolution_clock::now();
+        ALOGD("decode %s takes %lld ms", file.c_str(),
+                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+
+        t1 = std::chrono::high_resolution_clock::now();
+        file = path + "/libhigh.so";
+        imgWrapper = ImageLoader::LoadImage(file);
+        if (imgWrapper.Empty()) {
+            ALOGE("cannot decode %s", file.c_str());
+            return ImageGroup();
+        }
+        imgs[1] = imgWrapper.GetImg<uint8_t>();
+        t2 = std::chrono::high_resolution_clock::now();
+        ALOGD("decode %s takes %lld ms", file.c_str(),
+                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+
+        t1 = std::chrono::high_resolution_clock::now();
         auto imgNew = ImageMerge::Merge<float>(imgs[0], imgs[1]);
-        HableMapper toneMapper;
-        toneMapper.Map(imgNew);
-        ImageWrapper wrap(imgNew);
-        imgs[1] = wrap.GetImg<uint8_t>();
+        t2 = std::chrono::high_resolution_clock::now();
+        ALOGD("merge two picture takes %lld ms",
+                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+
+        imageGroup.first = imgs[0];
+        imageGroup.second = imgNew;
     }
 
-    return imgs;
+    return imageGroup;
 }
 
 JNIEXPORT void JNICALL
@@ -129,13 +151,11 @@ Java_com_android_gles3jni_GLES3JNILib_init(JNIEnv* env, jobject obj) {
         {1.0f, 1.0f},
     };
 
-    Render::ImageCoord coords[2] = { coordA, coordB };
-
-    for (int i = 0; i < g_Renders.size(); i++) {
-        g_Renders[i] = Render::Create();
-        g_Renders[i]->Init(coords[i]);
-    }
-
+    g_Renders[0] = Render::Create("Plain");
+    g_Renders[0]->Init(coordA);
+    g_Renders[1] = Render::Create("Hable");
+    g_Renders[1]->Init(coordB);
+ 
     return;
 }
 
@@ -148,10 +168,38 @@ JNIEXPORT void JNICALL
 Java_com_android_gles3jni_GLES3JNILib_render(JNIEnv* env, jobject obj) {
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     const auto imgs = GetImage();
 
-    for (int i = 0; i < imgs.size(); i++) {
-        g_Renders[i]->UploadTexture(imgs[i]);
-        g_Renders[i]->Draw();
+    static PerfMonitor perf[4] = {
+        PerfMonitor(30, [](long long dura) { ALOGD("[1] update takes %f ms", dura/1000.0); }),
+        PerfMonitor(30, [](long long dura) { ALOGD("[1] draw takes %f ms", dura/1000.0); }),
+        PerfMonitor(30, [](long long dura) { ALOGD("[2] update takes %f ms", dura/1000.0); }),
+        PerfMonitor(30, [](long long dura) { ALOGD("[2] draw takes %f ms", dura/1000.0); }),
+    };
+
+    std::chrono::high_resolution_clock::time_point t1, t2, t3;
+    if (imgs.first) {
+        t1 = std::chrono::high_resolution_clock::now();
+        g_Renders[0]->UploadTexture(imgs.first);
+        t2 = std::chrono::high_resolution_clock::now();
+
+        g_Renders[0]->Draw();
+        t3 = std::chrono::high_resolution_clock::now();
+
+        perf[0].Update(t2 - t1);
+        perf[1].Update(t3 - t2);
+    }
+
+    if (imgs.second) {
+        t1 = std::chrono::high_resolution_clock::now();
+        g_Renders[1]->UploadTexture(imgs.second);
+        t2 = std::chrono::high_resolution_clock::now();
+
+        g_Renders[1]->Draw();
+        t3 = std::chrono::high_resolution_clock::now();
+
+        perf[2].Update(t2 - t1);
+        perf[3].Update(t3 - t2);
     }
 }

@@ -121,73 +121,73 @@ int main(int argc, char *argv[])
         return 1;
 
     std::string files[2] = {argv[1], argv[2]};
-    std::array<std::shared_ptr<Image<uint8_t>>, 2> imgs;
-    for (size_t i = 0; i < imgs.size(); i++) {
-        auto imgWrapper = ImageLoader::LoadImage(files[i]);
-        if (imgWrapper.Empty()) {
-            ALOGE("cannot decode %s", files[i].c_str());
-            return 1;
-        }
-        imgs[i] = imgWrapper.GetImg<uint8_t>();
-    }
-
-    auto imgNew = ImageMerge::Merge<float>(imgs[0], imgs[1]);
+    using ImageGroup = std::pair<std::shared_ptr<Image<uint8_t>>, std::shared_ptr<Image<float>>>;
+    ImageGroup imageGroup;
     {
-        HableMapper toneMapper;
-        toneMapper.Map(imgNew);
-        ImageWrapper wrap(imgNew);
-        imgs[1] = wrap.GetImg<uint8_t>();
-        imgNew = nullptr;
+        std::array<std::shared_ptr<Image<uint8_t>>, 2> imgs;
+        for (size_t i = 0; i < imgs.size(); i++) {
+            auto imgWrapper = ImageLoader::LoadImage(files[i]);
+            if (imgWrapper.Empty()) {
+                ALOGE("cannot decode %s", files[i].c_str());
+                return 1;
+            }
+            imgs[i] = imgWrapper.GetImg<uint8_t>();
+        }
+        auto imgNew = ImageMerge::Merge<float>(imgs[0], imgs[1]);
+        imageGroup.first = imgs[0];
+        imageGroup.second = imgNew;
     }
 
     bool sideByside = true;
 #ifndef __APPLE__
     if (sideByside)
-        glfwSetWindowSize(window, imgs[0]->mWidth * imgs.size(), imgs[0]->mHeight);
+        glfwSetWindowSize(window, imageGroup.first->mWidth * 2, imageGroup.first->mHeight);
     else
-        glfwSetWindowSize(window, imgs[0]->mWidth, imgs[0]->mHeight * imgs.size());
+        glfwSetWindowSize(window, imageGroup.first->mWidth, imageGroup.first->mHeight * 2);
 #endif
-    const auto coords = GetCoord(imgs.size(), sideByside);
+    const auto coords = GetCoord(2, sideByside);
 
     std::array<std::shared_ptr<Render>, 2> renders;
-    for (size_t i = 0; i < imgs.size(); i++) {
-        auto r = std::shared_ptr<Render>(Render::Create());
-        if (r->Init(coords[i]))
-            return 1;
-        renders[i] = r;
-    }
+    renders[0] = std::shared_ptr<Render>(Render::Create("Plain"));
+    renders[1] = std::shared_ptr<Render>(Render::Create("Hable"));
+    renders[0]->Init(coords[0]);
+    renders[1]->Init(coords[1]);
 
-    PerfMonitor uploadPerf(100, [](long long t) {
-                ALOGD("hable upload takes %lld us", t);
-            });
-    PerfMonitor drawPerf(100, [](long long t) {
-                ALOGD("hable draw takes %lld us", t);
-            });
-    PerfMonitor fps(100, [](long long t) {
-                ALOGD("fps %f", 1000000.0 / t);
-            });
+    PerfMonitor perf[] = {
+        PerfMonitor(100, [](long long t) { ALOGD("[1] upload takes %f ms", t/1000.0); }),
+        PerfMonitor(100, [](long long t) { ALOGD("[1] draw takes %f ms", t/1000.0); }),
+        PerfMonitor(100, [](long long t) { ALOGD("[2] upload takes %f ms", t/1000.0); }),
+        PerfMonitor(100, [](long long t) { ALOGD("[2] draw takes %f ms", t/1000.0); }),
+        PerfMonitor(100, [](long long t) { ALOGD("fps %f", 1000000.0 / t); }),
+    };
+
     while (!glfwWindowShouldClose(window)) {
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        auto t1 = std::chrono::steady_clock::now();
-
-        renders[0]->UploadTexture(imgs[0]);
-        auto t2 = std::chrono::steady_clock::now();
-        renders[0]->Draw();
-        auto t3 = std::chrono::steady_clock::now();
-
-        for (size_t i = 1; i < imgs.size(); i++) {
-            renders[i]->UploadTexture(imgs[i]);
-            renders[i]->Draw();
+        {
+            auto t1 = std::chrono::high_resolution_clock::now();
+            renders[0]->UploadTexture(imageGroup.first);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            renders[0]->Draw();
+            auto t3 = std::chrono::high_resolution_clock::now();
+            perf[0].Update(t2 - t1);
+            perf[1].Update(t3 - t2);
         }
 
-        uploadPerf.Update(t2 -t1);
-        drawPerf.Update(t3 - t2);
+        {
+            auto t1 = std::chrono::high_resolution_clock::now();
+            renders[1]->UploadTexture(imageGroup.second);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            renders[1]->Draw();
+            auto t3 = std::chrono::high_resolution_clock::now();
+            perf[2].Update(t2 - t1);
+            perf[3].Update(t3 - t2);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-        fps.Update(std::chrono::steady_clock::now());
+        perf[4].Update(std::chrono::high_resolution_clock::now());
     }
 
     glfwDestroyWindow(window);

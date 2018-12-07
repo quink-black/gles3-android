@@ -13,20 +13,20 @@ PerfMonitor::PerfMonitor(int averageOver,
 {
 }
 
-void PerfMonitor::Update(const std::chrono::steady_clock::duration &d)
+void PerfMonitor::Update(const std::chrono::high_resolution_clock::duration &d)
 {
     mData[mIndex++] = d;
     if (mIndex == mData.size()) {
         mIndex = 0;
-        auto dura = std::accumulate(mData.begin(), mData.end(), std::chrono::steady_clock::duration()) / mData.size();
+        auto dura = std::accumulate(mData.begin(), mData.end(), std::chrono::high_resolution_clock::duration()) / mData.size();
         long long result = std::chrono::duration_cast<std::chrono::microseconds>(dura).count();
         mCallback(result);
     }
 }
 
-void PerfMonitor::Update(const std::chrono::steady_clock::time_point &t)
+void PerfMonitor::Update(const std::chrono::high_resolution_clock::time_point &t)
 {
-    if (mLastTime == std::chrono::steady_clock::time_point()) {
+    if (mLastTime == std::chrono::high_resolution_clock::time_point()) {
         mLastTime = t;
         return;
     }
@@ -47,9 +47,9 @@ int main()
     quink::PerfMonitor perfB(100, [](long long dura) { printf("perfB %lld\n", dura); });
 
     for (int i = 0; i < 1000; i++) {
-        auto a = std::chrono::steady_clock::now();
+        auto a = std::chrono::high_resolution_clock::now();
         usleep(10000);
-        auto b = std::chrono::steady_clock::now();
+        auto b = std::chrono::high_resolution_clock::now();
         perfA.Update(b - a);
         perfB.Update(b);
     }

@@ -31,10 +31,11 @@ public:
     int Init() override;
     int Init(const ImageCoord &coord) override;
     int UploadTexture(std::shared_ptr<Image<uint8_t>> img) override;
+    int UploadTexture(std::shared_ptr<Image<float>> img) override;
     int Draw() override;
 
-    std::string GetVertexSrc();
-    std::string GetFragSrc();
+    virtual std::string GetVertexSrc();
+    virtual std::string GetFragSrc();
 
 protected:
     GLuint mProgram;
@@ -179,6 +180,20 @@ int Plain::UploadTexture(std::shared_ptr<Image<uint8_t>> img) {
     return 0;
 }
 
+int Plain::UploadTexture(std::shared_ptr<Image<float>> img) {
+    CheckGLError();
+
+    mGamma = 2.2 / img->mGamma;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, mTexture);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, img->mWidth);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, img->mWidth, img->mHeight, 0, GL_RGB, GL_FLOAT, img->mData.get());
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    CheckGLError();
+
+    return 0;
+}
+
 int Plain::Draw() {
     glUseProgram(mProgram);
     glUniform1f(glGetUniformLocation(mProgram, "gamma"), mGamma);
@@ -192,8 +207,97 @@ int Plain::Draw() {
     return 0;
 }
 
-Render *Render::Create() {
-    return new Plain();
+class Hable : public Plain {
+public:
+    Hable();
+    virtual ~Hable();
+    int Init(const ImageCoord &coord) override;
+
+    std::string GetFragSrc() override;
+
+private:
+    /* F(x) = ((x*(A*x + C*B) + D*E) / (x*(A*x + B) + D*F)) - E/F;
+     * FinalColor = F(Linearcolor) / F(LinearWhite)
+     */
+    float mA = 0.15f;   // Shoulder Strength
+    float mB = 0.50f;   // Linear Strength
+    float mC = 0.10f;   // Linear Angle
+    float mD = 0.20f;   // Toe Strength
+    float mE = 0.02f;   // Toe Numerator
+    float mF = 0.30f;   // Tone Denominator E/F = Toe Angle
+    float mW = 11.2f;   // Linear White Point Value
+};
+
+Hable::Hable() { }
+Hable::~Hable() { }
+
+std::string Hable::GetFragSrc() {
+    std::string src(HEADER_VERSION);
+    src +=
+R"(precision mediump float;
+uniform sampler2D source;
+uniform float gamma;
+uniform float A;
+uniform float B;
+uniform float C;
+uniform float D;
+uniform float E;
+uniform float F;
+uniform float W;
+in vec2 o_uv;
+out vec4 out_color;
+
+vec4 clampedValue(vec4 color)
+{
+    color.a = 1.0;
+    return clamp(color, 0.0, 1.0);
+}
+
+vec4 gammaCorrect(vec4 color)
+{
+    return pow(color, vec4(1.0 / gamma));
+}
+
+vec4 tonemap(vec4 x)
+{
+    return ((x * (A*x + C*B) + D*E) / (x * (A*x+B) + D*F)) - E/F;
+}
+
+void main()
+{
+    vec4 color = texture(source, o_uv);
+    float exposureBias = 2.0;
+    vec4 curr = tonemap(exposureBias * color);
+    vec4 whiteScale = 1.0 / tonemap(vec4(W));
+    color = curr * whiteScale;
+    color = clampedValue(color);
+    out_color = gammaCorrect(color);
+})";
+    return src;
+}
+
+int Hable::Init(const ImageCoord &coord) {
+    int ret = Plain::Init(coord);
+    if (ret)
+        return ret;
+
+    glUseProgram(mProgram);
+    glUniform1f(glGetUniformLocation(mProgram, "A"), mA);
+    glUniform1f(glGetUniformLocation(mProgram, "B"), mB);
+    glUniform1f(glGetUniformLocation(mProgram, "C"), mC);
+    glUniform1f(glGetUniformLocation(mProgram, "D"), mD);
+    glUniform1f(glGetUniformLocation(mProgram, "E"), mE);
+    glUniform1f(glGetUniformLocation(mProgram, "F"), mF);
+    glUniform1f(glGetUniformLocation(mProgram, "W"), mW);
+
+    return 0;
+}
+
+Render *Render::Create(const std::string &name) {
+    if (name == "Hable")
+        return new Hable();
+    else
+        return new Plain();
 }
 
 }
